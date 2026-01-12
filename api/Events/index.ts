@@ -23,7 +23,11 @@ export default async function (
 
       const { resources } = await container.items.query(querySpec).fetchAll();
 
-      (context as any).res = { status: 200, jsonBody: resources };
+      (context as any).res = {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: resources ?? [],
+      };
       return;
     }
 
