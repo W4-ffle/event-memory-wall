@@ -4,16 +4,15 @@
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
-      "name": "request",
+      "name": "req",
       "methods": ["get", "post"],
       "route": "v1/events"
     },
     {
       "type": "http",
       "direction": "out",
-      "name": "$return"
+      "name": "res"
     }
   ],
-  "scriptFile": "../dist/Events/index.js",
-  "entryPoint": "default"
+  "scriptFile": "../dist/Events/index.js"
 }

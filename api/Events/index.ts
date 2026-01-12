@@ -1,17 +1,84 @@
-import { HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { HttpRequest, InvocationContext } from "@azure/functions";
+import { randomUUID } from "crypto";
+
+// Uncomment later once Events responds successfully
+// import { getEventsContainer } from "../src/shared/cosmos";
 
 export default async function (
-  request: HttpRequest,
-  context: InvocationContext
-): Promise<HttpResponseInit> {
-  context.log("Events handler reached - v5 minimal");
+  context: InvocationContext,
+  req: HttpRequest
+): Promise<void> {
+  context.log("Events handler reached - context-first");
 
-  return {
-    status: 200,
-    jsonBody: {
-      ok: true,
-      method: request.method,
-      message: "Events endpoint responding"
+  try {
+    const hostId = req.headers.get("x-host-id") || "demo-host";
+
+    if (req.method === "GET") {
+      (context as any).res = {
+        status: 200,
+        jsonBody: {
+          ok: true,
+          hostId,
+          message: "GET /events working (no cosmos)",
+        },
+      };
+      return;
     }
-  };
+
+    if (req.method === "POST") {
+      let body: any;
+      try {
+        body = await req.json();
+      } catch {
+        (context as any).res = {
+          status: 400,
+          jsonBody: { error: "Invalid or missing JSON body" },
+        };
+        return;
+      }
+
+      if (
+        !body?.title ||
+        typeof body.title !== "string" ||
+        !body.title.trim()
+      ) {
+        (context as any).res = {
+          status: 400,
+          jsonBody: { error: "title is required" },
+        };
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const eventId = `event_${randomUUID()}`;
+
+      const doc = {
+        id: eventId,
+        eventId,
+        hostId,
+        title: body.title.trim(),
+        createdAt: now,
+      };
+
+      // const container = await getEventsContainer();
+      // await container.items.create(doc);
+
+      (context as any).res = { status: 201, jsonBody: doc };
+      return;
+    }
+
+    (context as any).res = {
+      status: 405,
+      jsonBody: { error: "Method not allowed" },
+    };
+  } catch (err: any) {
+    context.log("Events FAILED: " + (err?.message ?? "Unknown error"));
+    (context as any).res = {
+      status: 500,
+      jsonBody: {
+        error: "Internal server error",
+        message: err?.message ?? "Unknown error",
+      },
+    };
+  }
 }
