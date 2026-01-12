@@ -14,5 +14,6 @@
       "name": "$return"
     }
   ],
-  "scriptFile": "../dist/Events/index.js"
+  "scriptFile": "../dist/Events/index.js",
+  "entryPoint": "default"
 }
