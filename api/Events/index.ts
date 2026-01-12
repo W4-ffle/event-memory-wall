@@ -1,54 +1,57 @@
 import { HttpRequest, InvocationContext } from "@azure/functions";
 import { randomUUID } from "crypto";
 
-// Uncomment later once Events responds successfully
-// import { getEventsContainer } from "../src/shared/cosmos";
-
 export default async function (
   context: InvocationContext,
   req: HttpRequest
 ): Promise<void> {
-  context.log("Events handler reached - context-first");
+  context.log("Events handler reached - classic model");
 
   try {
-    const headers = req.headers as unknown as Record<string, string>;
-
+    const headers = req.headers as unknown as Record<string, any>;
     const hostId = headers["x-host-id"] || headers["X-Host-Id"] || "demo-host";
 
     if (req.method === "GET") {
       (context as any).res = {
         status: 200,
-        jsonBody: {
-          ok: true,
-          hostId,
-          message: "GET /events working (no cosmos)",
-        },
+        jsonBody: { ok: true, hostId, message: "GET /events working" },
       };
       return;
     }
 
     if (req.method === "POST") {
+      // --- Body parsing for classic Functions model ---
       let body: any;
 
       try {
-        // Try normal JSON parse first
-        body = await req.json();
-      } catch (e: any) {
-        // Fallback: read text so we can diagnose what's being sent
-        const raw = await req.text().catch(() => "");
-        context.log(
-          "POST /events JSON parse failed. content-type=" +
-            (req.headers as any)["content-type"]
-        );
-        context.log("Raw body: " + raw);
+        body = (req as any).body;
+
+        if (typeof body === "string") {
+          body = JSON.parse(body);
+        }
+
+        if (!body) {
+          throw new Error("Empty body");
+        }
+      } catch {
+        context.log("POST /events body parse failed");
+        context.log("content-type: " + (headers["content-type"] ?? ""));
+        context.log("raw body: " + String((req as any).body ?? ""));
 
         (context as any).res = {
           status: 400,
           jsonBody: {
             error: "Invalid or missing JSON body",
-            hint: "Ensure Content-Type: application/json and Body is raw JSON",
-            rawBody: raw,
+            hint: "Send raw JSON with Content-Type: application/json",
           },
+        };
+        return;
+      }
+
+      if (!body.title || typeof body.title !== "string" || !body.title.trim()) {
+        (context as any).res = {
+          status: 400,
+          jsonBody: { error: "title is required" },
         };
         return;
       }
@@ -63,9 +66,6 @@ export default async function (
         title: body.title.trim(),
         createdAt: now,
       };
-
-      // const container = await getEventsContainer();
-      // await container.items.create(doc);
 
       (context as any).res = { status: 201, jsonBody: doc };
       return;
