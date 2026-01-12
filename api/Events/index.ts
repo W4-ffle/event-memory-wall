@@ -29,24 +29,26 @@ export default async function (
 
     if (req.method === "POST") {
       let body: any;
-      try {
-        body = await req.json();
-      } catch {
-        (context as any).res = {
-          status: 400,
-          jsonBody: { error: "Invalid or missing JSON body" },
-        };
-        return;
-      }
 
-      if (
-        !body?.title ||
-        typeof body.title !== "string" ||
-        !body.title.trim()
-      ) {
+      try {
+        // Try normal JSON parse first
+        body = await req.json();
+      } catch (e: any) {
+        // Fallback: read text so we can diagnose what's being sent
+        const raw = await req.text().catch(() => "");
+        context.log(
+          "POST /events JSON parse failed. content-type=" +
+            (req.headers as any)["content-type"]
+        );
+        context.log("Raw body: " + raw);
+
         (context as any).res = {
           status: 400,
-          jsonBody: { error: "title is required" },
+          jsonBody: {
+            error: "Invalid or missing JSON body",
+            hint: "Ensure Content-Type: application/json and Body is raw JSON",
+            rawBody: raw,
+          },
         };
         return;
       }
