@@ -1,52 +1,35 @@
-import {
-  HttpRequest,
-  HttpResponseInit,
-  InvocationContext,
-} from "@azure/functions";
+import { HttpRequest, InvocationContext } from "@azure/functions";
 import { getEventsContainer } from "../src/shared/cosmos";
+import { json, serverError } from "../src/shared/http";
 
-export default async function (
-  request: HttpRequest,
-  context: InvocationContext
-): Promise<HttpResponseInit> {
-  const container = await getEventsContainer();
-  const eventId = (request.params as any)?.eventId;
-  if (!eventId) {
-    return {
-      status: 400,
-      jsonBody: { error: "eventId route parameter is required" },
-    };
-  }
+export default async function (req: HttpRequest, context: InvocationContext) {
+  try {
+    const container = await getEventsContainer();
+    const hostId = req.headers.get("x-host-id") || "demo-host";
 
-  const hostId = request.headers.get("x-host-id") || "demo-host";
+    // eventId comes from the route parameter
+    const eventId =
+      (context as any)?.bindingData?.eventId ||
+      (context as any)?.bindingData?.id;
 
-  const item = container.item(eventId, hostId);
-
-  if (request.method === "PATCH") {
-    const { resource } = await item.read();
-    if (!resource) {
-      return { status: 404, jsonBody: { error: "Not found" } };
+    if (!eventId) {
+      json(context, 400, { error: "Bad Request", message: "Missing eventId" });
+      return;
     }
 
-    const body = (await request.json().catch(() => ({}))) as any;
+    // We store id == eventId, so read by id.
+    // If your container is partitioned by hostId, keep hostId here.
+    const { resource } = await container.item(eventId, hostId).read();
 
-    const updated = {
-      ...resource,
-      title: body.title ?? resource.title,
-      description: body.description ?? resource.description,
-      startsAt: body.startsAt ?? resource.startsAt,
-      endsAt: body.endsAt ?? resource.endsAt,
-      visibility: body.visibility ?? resource.visibility,
-    };
+    if (!resource) {
+      json(context, 404, { error: "Not Found" });
+      return;
+    }
 
-    await item.replace(updated);
-    return { status: 200, jsonBody: updated };
+    json(context, 200, resource);
+  } catch (err: any) {
+    context.log("EventById error:", err?.message);
+    context.log(err?.stack);
+    serverError(context, err);
   }
-
-  if (request.method === "DELETE") {
-    await item.delete();
-    return { status: 204 };
-  }
-
-  return { status: 405, jsonBody: { error: "Method not allowed" } };
 }

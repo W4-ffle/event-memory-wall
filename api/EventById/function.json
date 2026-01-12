@@ -4,16 +4,15 @@
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
-      "name": "request",
-      "methods": ["get", "patch", "delete"],
+      "name": "req",
+      "methods": ["get"],
       "route": "v1/events/{eventId}"
     },
     {
       "type": "http",
       "direction": "out",
-      "name": "$return"
+      "name": "res"
     }
   ],
-  "scriptFile": "../dist/EventById/index.js",
-  "entryPoint": "default"
+  "scriptFile": "../dist/EventById/index.js"
 }

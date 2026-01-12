@@ -16,6 +16,10 @@ export function badRequest(context: InvocationContext, message: string) {
   json(context, 400, { error: "Bad Request", message });
 }
 
+export function methodNotAllowed(context: InvocationContext) {
+  json(context, 405, { error: "Method not allowed" });
+}
+
 export function serverError(context: InvocationContext, err: any) {
   json(context, 500, {
     error: "Internal Server Error",
