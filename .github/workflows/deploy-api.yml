@@ -1,43 +1,43 @@
-name: Deploy API to Azure Functions (ZipDeploy via WebApps Deploy)
+name: Deploy API to Azure Functions
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
     paths:
       - "api/**"
-      - ".github/workflows/deploy-api.yml"
-  workflow_dispatch:
+      - ".github/workflows/master_func-emw-jb.yml"
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Use Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install dependencies (api)
+      - name: Install + build (api)
         working-directory: api
-        run: npm ci
+        run: |
+          npm ci
+          npm run build
 
-      - name: Build (api)
+      # Key step: install production deps so runtime has @azure/cosmos
+      - name: Install production dependencies (api)
         working-directory: api
-        run: npm run build
+        run: npm ci --omit=dev
 
-      # Create a deployment zip containing the API project
-      - name: Zip API package
+      - name: Zip artifact for deployment
         run: |
           cd api
-          zip -r ../api.zip . -x "local.settings.json" -x ".gitignore" -x "node_modules/*" -x "**/.DS_Store"
+          zip -r ../api.zip . -x "local.settings.json"
 
-      - name: Deploy to Function App
-        uses: azure/webapps-deploy@v3
+      - name: Deploy to Azure Functions (publish profile)
+        uses: Azure/functions-action@v1
         with:
-          app-name: "func-emw-jb"
+          app-name: func-emw-jb
+          package: api.zip
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          package: "api.zip"
