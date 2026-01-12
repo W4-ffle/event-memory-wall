@@ -27,10 +27,16 @@ export default async function (
 
       return { status: 200, jsonBody: resources };
     } catch (err: any) {
-      context.log("GET /events failed", err);
+      context.log("Events function error:");
+      context.log(err?.message);
+      context.log(err?.stack);
+
       return {
         status: 500,
-        jsonBody: { error: "Cosmos query failed", message: err?.message },
+        jsonBody: {
+          error: "Internal server error",
+          message: err?.message ?? "Unknown error",
+        },
       };
     }
   }
@@ -70,10 +76,16 @@ export default async function (
 
       return { status: 201, jsonBody: doc };
     } catch (err: any) {
-      context.log("POST /events failed", err);
+      context.log("Events function error:");
+      context.log(err?.message);
+      context.log(err?.stack);
+
       return {
         status: 500,
-        jsonBody: { error: "Cosmos create failed", message: err?.message },
+        jsonBody: {
+          error: "Internal server error",
+          message: err?.message ?? "Unknown error",
+        },
       };
     }
   }
