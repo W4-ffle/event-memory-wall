@@ -6,7 +6,6 @@ yarn-error.log*
 
 # Vite / build
 frontend/dist/
-frontend/.env
 frontend/.env.local
 
 # Azure Functions
