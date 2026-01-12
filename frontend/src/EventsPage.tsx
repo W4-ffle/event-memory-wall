@@ -73,6 +73,19 @@ export default function EventsPage() {
           </li>
         ))}
       </ul>
+      {events[0] && (
+        <div
+          style={{ marginTop: 24, paddingTop: 12, borderTop: "1px solid #ddd" }}
+        >
+          <h3>Upload to first event</h3>
+
+          <div style={{ marginBottom: 8 }}>
+            <strong>{events[0].title}</strong>
+          </div>
+
+          <UploadMedia eventId={events[0].eventId} />
+        </div>
+      )}
     </div>
   );
 }
