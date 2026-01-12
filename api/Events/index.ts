@@ -11,7 +11,9 @@ export default async function (
   context.log("Events handler reached - context-first");
 
   try {
-    const hostId = req.headers.get("x-host-id") || "demo-host";
+    const headers = req.headers as unknown as Record<string, string>;
+
+    const hostId = headers["x-host-id"] || headers["X-Host-Id"] || "demo-host";
 
     if (req.method === "GET") {
       (context as any).res = {
