@@ -1,17 +1,11 @@
 import { HttpRequest, InvocationContext } from "@azure/functions";
 import { randomUUID } from "crypto";
 import { getEventsContainer } from "../src/shared/cosmos";
+import { json, badRequest, serverError } from "../src/shared/http";
 
-export default async function (
-  context: InvocationContext,
-  req: HttpRequest
-): Promise<void> {
-  context.log("Events handler reached - cosmos enabled");
-
+export default async function (req: HttpRequest, context: InvocationContext) {
   try {
-    const headers = req.headers as unknown as Record<string, any>;
-    const hostId = headers["x-host-id"] || headers["X-Host-Id"] || "demo-host";
-
+    const hostId = req.headers.get("x-host-id") || "demo-host";
     const container = await getEventsContainer();
 
     if (req.method === "GET") {
@@ -23,37 +17,25 @@ export default async function (
 
       const { resources } = await container.items.query(querySpec).fetchAll();
 
-      (context as any).res = {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-        body: resources ?? [],
-      };
+      json(context, 200, resources ?? []);
       return;
     }
 
     if (req.method === "POST") {
-      // --- Body parsing (classic model) ---
       let body: any;
       try {
-        body = (req as any).body;
-        if (typeof body === "string") body = JSON.parse(body);
-        if (!body) throw new Error("Empty body");
+        body = await req.json();
       } catch {
-        (context as any).res = {
-          status: 400,
-          jsonBody: {
-            error: "Invalid or missing JSON body",
-            hint: "Send raw JSON with Content-Type: application/json",
-          },
-        };
+        badRequest(context, "Invalid or missing JSON body");
         return;
       }
 
-      if (!body.title || typeof body.title !== "string" || !body.title.trim()) {
-        (context as any).res = {
-          status: 400,
-          jsonBody: { error: "title is required" },
-        };
+      if (
+        !body?.title ||
+        typeof body.title !== "string" ||
+        !body.title.trim()
+      ) {
+        badRequest(context, "title is required");
         return;
       }
 
@@ -61,9 +43,9 @@ export default async function (
       const eventId = `event_${randomUUID()}`;
 
       const doc = {
-        id: eventId,
-        eventId,
-        hostId,
+        id: eventId, // Cosmos id
+        eventId, // readable id for your app
+        hostId, // partition-like grouping for host
         title: body.title.trim(),
         description: body.description || "",
         startsAt: body.startsAt || null,
@@ -74,24 +56,14 @@ export default async function (
 
       await container.items.create(doc);
 
-      (context as any).res = { status: 201, jsonBody: doc };
+      json(context, 201, doc);
       return;
     }
 
-    (context as any).res = {
-      status: 405,
-      jsonBody: { error: "Method not allowed" },
-    };
+    json(context, 405, { error: "Method not allowed" });
   } catch (err: any) {
-    context.log("Events FAILED: " + (err?.message ?? "Unknown error"));
-    context.log("Stack: " + (err?.stack ?? "No stack"));
-
-    (context as any).res = {
-      status: 500,
-      jsonBody: {
-        error: "Internal server error",
-        message: err?.message ?? "Unknown error",
-      },
-    };
+    context.log("Events error:", err?.message);
+    context.log(err?.stack);
+    serverError(context, err);
   }
 }
