@@ -17,3 +17,13 @@ export async function getEventsContainer(): Promise<Container> {
   const db = client.database(databaseId);
   return db.container(eventsContainerId);
 }
+
+export async function getMediaContainer() {
+  const client = new CosmosClient({
+    endpoint: required("COSMOS_ENDPOINT"),
+    key: required("COSMOS_KEY"),
+  });
+
+  const db = client.database(required("COSMOS_DATABASE"));
+  return db.container(required("COSMOS_MEDIA_CONTAINER"));
+}
