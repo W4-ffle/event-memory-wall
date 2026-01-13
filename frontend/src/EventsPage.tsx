@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost, apiDeleteRaw, apiPatch, apiGetBlob } from "./api";
+import { apiGet, apiPost, apiDeleteRaw, apiPatch } from "./api";
 import UploadMedia from "./UploadMedia";
 import MediaGallery from "./MediaGallery";
 import MembersPanel from "./MembersPanel";
@@ -72,30 +72,6 @@ function pickDisplayUrl(sas: any): string | null {
   );
 }
 
-function safeFileName(name: string) {
-  const base = String(name || "event")
-    .replace(/[\/\\?%*:|"<>]/g, "_")
-    .replace(/\s+/g, " ")
-    .trim();
-  return base.length ? base : "event";
-}
-
-async function assertLooksLikeZip(blob: Blob) {
-  // ZIP files start with "PK"
-  const buf = await blob.slice(0, 4).arrayBuffer();
-  const b = new Uint8Array(buf);
-  const isZip = b[0] === 0x50 && b[1] === 0x4b;
-
-  if (!isZip) {
-    const text = await blob.text().catch(() => "");
-    throw new Error(
-      `Download did not look like a ZIP. Response starts with: ${text
-        .slice(0, 200)
-        .replace(/\s+/g, " ")}`
-    );
-  }
-}
-
 export default function EventsPage() {
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -140,11 +116,6 @@ export default function EventsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [creating, setCreating] = useState(false);
-
-  // ---------- Download state ----------
-  const [downloadingEventId, setDownloadingEventId] = useState<string | null>(
-    null
-  );
 
   function bumpRefresh(eventId: string) {
     setMediaRefresh((prev) => ({
@@ -264,41 +235,6 @@ export default function EventsPage() {
       setError(e.message);
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function downloadEventZip(ev: EventDoc) {
-    setError(null);
-    setDownloadingEventId(ev.eventId);
-
-    let url: string | null = null;
-    try {
-      const blob = await apiGetBlob(`/events/${ev.eventId}/download`);
-      await assertLooksLikeZip(blob);
-
-      const fileName = `${safeFileName(ev.title)}.zip`;
-      url = URL.createObjectURL(blob);
-
-      // Works on most browsers; iOS may show its download UI / Files.
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (e: any) {
-      setError(e?.message ?? "Download failed.");
-    } finally {
-      setDownloadingEventId(null);
-      if (url) {
-        // give the browser a moment to start the download before revoking
-        setTimeout(() => {
-          try {
-            URL.revokeObjectURL(url as string);
-          } catch {}
-        }, 10_000);
-      }
     }
   }
 
@@ -628,7 +564,7 @@ export default function EventsPage() {
             })}
           </div>
 
-          {/* Selected event details panel */}
+          {/* Selected event details panel (keeps your existing functionality) */}
           {selectedEvent && (
             <div style={{ marginTop: 26, maxWidth: 1100 }}>
               <div
@@ -673,111 +609,70 @@ export default function EventsPage() {
                     )}
                   </div>
 
-                  {/* Right-side controls: Download for members/admin; Edit/Delete only admin */}
-                  {(() => {
-                    const canManage = canManageMembers(selectedEvent); // member or admin
-                    const canDownload = admin || canManage;
+                  {admin &&
+                    editingEventId !== selectedEvent.eventId &&
+                    confirmDeleteEventId !== selectedEvent.eventId && (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => startEdit(selectedEvent)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 10,
+                            border: "1px solid #d1d5db",
+                            background: "#fff",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Edit
+                        </button>
 
-                    return (
-                      <div
-                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-                      >
-                        {canDownload && (
-                          <button
-                            onClick={() => downloadEventZip(selectedEvent)}
-                            disabled={
-                              downloadingEventId === selectedEvent.eventId
-                            }
-                            style={{
-                              padding: "8px 12px",
-                              borderRadius: 10,
-                              border: "1px solid #d1d5db",
-                              background: "#fff",
-                              cursor:
-                                downloadingEventId === selectedEvent.eventId
-                                  ? "not-allowed"
-                                  : "pointer",
-                              opacity:
-                                downloadingEventId === selectedEvent.eventId
-                                  ? 0.7
-                                  : 1,
-                              fontWeight: 600,
-                            }}
-                            title="Download all media as a ZIP"
-                          >
-                            {downloadingEventId === selectedEvent.eventId
-                              ? "Preparing..."
-                              : "Download ZIP"}
-                          </button>
-                        )}
-
-                        {admin &&
-                          editingEventId !== selectedEvent.eventId &&
-                          confirmDeleteEventId !== selectedEvent.eventId && (
-                            <>
-                              <button
-                                onClick={() => startEdit(selectedEvent)}
-                                style={{
-                                  padding: "8px 12px",
-                                  borderRadius: 10,
-                                  border: "1px solid #d1d5db",
-                                  background: "#fff",
-                                  cursor: "pointer",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Edit
-                              </button>
-
-                              <button
-                                onClick={() => requestDelete(selectedEvent)}
-                                style={{
-                                  padding: "8px 12px",
-                                  borderRadius: 10,
-                                  border: "1px solid #d1d5db",
-                                  background: "#fff",
-                                  cursor: "pointer",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Delete Event
-                              </button>
-                            </>
-                          )}
-
-                        {admin && editingEventId === selectedEvent.eventId && (
-                          <>
-                            <button
-                              onClick={() => saveEdit(selectedEvent.eventId)}
-                              style={{
-                                padding: "8px 12px",
-                                borderRadius: 10,
-                                border: "1px solid #d1d5db",
-                                background: "#fff",
-                                cursor: "pointer",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={cancelEdit}
-                              style={{
-                                padding: "8px 12px",
-                                borderRadius: 10,
-                                border: "1px solid #d1d5db",
-                                background: "#fff",
-                                cursor: "pointer",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        )}
+                        <button
+                          onClick={() => requestDelete(selectedEvent)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 10,
+                            border: "1px solid #d1d5db",
+                            background: "#fff",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Delete Event
+                        </button>
                       </div>
-                    );
-                  })()}
+                    )}
+
+                  {admin && editingEventId === selectedEvent.eventId && (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => saveEdit(selectedEvent.eventId)}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #d1d5db",
+                          background: "#fff",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #d1d5db",
+                          background: "#fff",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {(() => {
@@ -886,6 +781,7 @@ export default function EventsPage() {
       {createOpen && (
         <div
           onMouseDown={(e) => {
+            // click outside closes
             if (e.target === e.currentTarget) setCreateOpen(false);
           }}
           style={{
