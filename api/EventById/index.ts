@@ -3,6 +3,30 @@ import { getEventsContainer, getMediaContainer } from "../src/shared/cosmos";
 import { deleteBlobIfPossible } from "../src/shared/blob";
 import { getAuth, requireAdmin, requireLogin } from "../src/shared/auth";
 
+// ---- CORS (must allow x-admin-passcode or browser preflight will fail) ----
+const ALLOWED_ORIGIN = "https://stgemwjb.z33.web.core.windows.net";
+const ALLOWED_HEADERS = "Content-Type, x-host-id, x-user-id, x-admin-passcode";
+const ALLOWED_METHODS = "GET,POST,PATCH,DELETE,OPTIONS";
+
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+    "Access-Control-Allow-Headers": ALLOWED_HEADERS,
+    "Access-Control-Allow-Methods": ALLOWED_METHODS,
+  };
+}
+
+function handleOptions(context: any, req: HttpRequest): boolean {
+  if (req.method !== "OPTIONS") return false;
+
+  context.res = {
+    status: 204,
+    headers: { ...corsHeaders() },
+    body: "",
+  };
+  return true;
+}
+
 function readJsonBody(req: any): any | null {
   const raw = req?.body;
   if (!raw) return null;
@@ -19,13 +43,19 @@ function readJsonBody(req: any): any | null {
 function send(context: any, status: number, body: any) {
   context.res = {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      ...corsHeaders(),
+      "Content-Type": "application/json",
+    },
     body,
   };
 }
 
 export default async function (context: any, req: HttpRequest): Promise<void> {
   try {
+    // ✅ must handle browser preflight first
+    if (handleOptions(context, req)) return;
+
     const eventId = (context?.bindingData?.eventId as string) || "";
     if (!eventId) {
       send(context, 400, { error: "eventId is required" });
@@ -46,7 +76,7 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
 
     const events = await getEventsContainer();
 
-    // Helper: load event (non-deleted optionally)
+    // Helper: load event (optionally include deleted)
     async function loadEvent(includeDeleted: boolean) {
       const q = {
         query: `
@@ -85,7 +115,7 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
         return;
       }
 
-      // Admin can view any event; user must be a member
+      // Admin can view any event; normal user must be a member
       if (!isAdmin && !isMember(ev)) {
         send(context, 403, { error: "Forbidden" });
         return;

@@ -1,4 +1,5 @@
 import type { HttpRequest } from "@azure/functions";
+import { handleOptions } from "../src/shared/http";
 
 function getHeader(req: HttpRequest, name: string): string | undefined {
   const headers = req.headers as unknown as Record<string, any>;
