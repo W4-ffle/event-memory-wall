@@ -3,9 +3,7 @@ import {
   generateBlobSASQueryParameters,
   BlobSASPermissions,
   BlobServiceClient,
-  BlobClient,
 } from "@azure/storage-blob";
-import type { Readable } from "stream";
 
 function required(name: string): string {
   const v = process.env[name];
@@ -118,49 +116,4 @@ export async function deleteBlobIfPossible(blobUrl: string): Promise<void> {
 
   // deleteIfExists avoids throwing if it's already gone (common with retries)
   await blobClient.deleteIfExists();
-}
-
-/**
- * FIXED: Create an authenticated BlobClient from a plain blobUrl (no SAS).
- * This MUST use account key credentials server-side; anonymous will not work
- * for private containers and can lead to downloading HTML error pages elsewhere.
- */
-export function blobClientFromBlobUrl(blobUrl: string): BlobClient {
-  const { accountName, cred } = getCred();
-
-  const { container, blobName } = parseBlobUrl(blobUrl);
-  if (!container || !blobName) {
-    throw new Error("Invalid blobUrl (missing container/blobName)");
-  }
-
-  const service = new BlobServiceClient(
-    `https://${accountName}.blob.core.windows.net`,
-    cred
-  );
-
-  return service.getContainerClient(container).getBlobClient(blobName);
-}
-
-/**
- * FIXED: Download a readable stream for a blobUrl (no SAS), authenticated server-side.
- */
-export async function downloadBlobStreamFromBlobUrl(
-  blobUrl: string
-): Promise<Readable | null> {
-  const { accountName, cred } = getCred();
-
-  const { container, blobName } = parseBlobUrl(blobUrl);
-  if (!container || !blobName) return null;
-
-  const service = new BlobServiceClient(
-    `https://${accountName}.blob.core.windows.net`,
-    cred
-  );
-
-  const blobClient = service
-    .getContainerClient(container)
-    .getBlobClient(blobName);
-
-  const resp = await blobClient.download();
-  return (resp.readableStreamBody as any) || null;
 }
