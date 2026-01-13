@@ -80,6 +80,22 @@ function safeFileName(name: string) {
   return base.length ? base : "event";
 }
 
+async function assertLooksLikeZip(blob: Blob) {
+  // ZIP files start with "PK"
+  const buf = await blob.slice(0, 4).arrayBuffer();
+  const b = new Uint8Array(buf);
+  const isZip = b[0] === 0x50 && b[1] === 0x4b;
+
+  if (!isZip) {
+    const text = await blob.text().catch(() => "");
+    throw new Error(
+      `Download did not look like a ZIP. Response starts with: ${text
+        .slice(0, 200)
+        .replace(/\s+/g, " ")}`
+    );
+  }
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -252,17 +268,18 @@ export default function EventsPage() {
   }
 
   async function downloadEventZip(ev: EventDoc) {
-    // Must be triggered by a user gesture (button click) for best mobile behavior
     setError(null);
     setDownloadingEventId(ev.eventId);
 
+    let url: string | null = null;
     try {
       const blob = await apiGetBlob(`/events/${ev.eventId}/download`);
+      await assertLooksLikeZip(blob);
+
       const fileName = `${safeFileName(ev.title)}.zip`;
+      url = URL.createObjectURL(blob);
 
-      const url = URL.createObjectURL(blob);
-
-      // Attempt "download" first (works on most desktop browsers)
+      // Works on most browsers; iOS may show its download UI / Files.
       const a = document.createElement("a");
       a.href = url;
       a.download = fileName;
@@ -270,19 +287,18 @@ export default function EventsPage() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-
-      // iOS Safari sometimes ignores a.download; fallback to opening the blob URL
-      // if the download attribute didn’t trigger a save prompt.
-      // (This is best-effort; still depends on iOS version/user settings.)
-      setTimeout(() => {
-        try {
-          URL.revokeObjectURL(url);
-        } catch {}
-      }, 30_000);
     } catch (e: any) {
       setError(e?.message ?? "Download failed.");
     } finally {
       setDownloadingEventId(null);
+      if (url) {
+        // give the browser a moment to start the download before revoking
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(url as string);
+          } catch {}
+        }, 10_000);
+      }
     }
   }
 
@@ -612,7 +628,7 @@ export default function EventsPage() {
             })}
           </div>
 
-          {/* Selected event details panel (keeps your existing functionality) */}
+          {/* Selected event details panel */}
           {selectedEvent && (
             <div style={{ marginTop: 26, maxWidth: 1100 }}>
               <div
@@ -870,7 +886,6 @@ export default function EventsPage() {
       {createOpen && (
         <div
           onMouseDown={(e) => {
-            // click outside closes
             if (e.target === e.currentTarget) setCreateOpen(false);
           }}
           style={{

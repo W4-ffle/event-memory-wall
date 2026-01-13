@@ -5,6 +5,7 @@ import {
   BlobServiceClient,
   BlobClient,
 } from "@azure/storage-blob";
+import type { Readable } from "stream";
 
 function required(name: string): string {
   const v = process.env[name];
@@ -133,4 +134,24 @@ export function blobClientFromBlobUrl(blobUrl: string): BlobClient {
   );
 
   return service.getContainerClient(container).getBlobClient(blobName);
+}
+
+export async function downloadBlobStreamFromBlobUrl(
+  blobUrl: string
+): Promise<Readable | null> {
+  const { accountName, cred } = getCred();
+
+  const { container, blobName } = parseBlobUrl(blobUrl);
+  if (!container || !blobName) return null;
+
+  const service = new BlobServiceClient(
+    `https://${accountName}.blob.core.windows.net`,
+    cred
+  );
+
+  const blobClient = service
+    .getContainerClient(container)
+    .getBlobClient(blobName);
+  const resp = await blobClient.download();
+  return (resp.readableStreamBody as any) || null;
 }
