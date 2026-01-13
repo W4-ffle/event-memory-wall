@@ -5,13 +5,14 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get", "options"],
-      "route": "events/{eventId}/download"
+      "methods": ["get", "patch", "delete", "put", "options"],
+      "route": "v1/events/{eventId}"
     },
     {
       "type": "http",
       "direction": "out",
       "name": "res"
     }
-  ]
+  ],
+  "scriptFile": "../dist/EventById/index.js"
 }
