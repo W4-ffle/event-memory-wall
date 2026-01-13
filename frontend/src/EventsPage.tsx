@@ -17,6 +17,13 @@ type EventDoc = {
   status?: string;
 };
 
+type MediaDoc = {
+  mediaId: string;
+  type: "IMAGE" | "VIDEO";
+  createdAt: string;
+  fileName: string;
+};
+
 function getSession(): { userId?: string; isAdmin?: boolean } | null {
   try {
     return JSON.parse(localStorage.getItem("emw_session") || "null");
@@ -38,6 +45,30 @@ function uniqueStrings(xs: any[]): string[] {
         .map((s) => s.trim())
         .filter(Boolean)
     )
+  );
+}
+
+function formatDate(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function pickDisplayUrl(sas: any): string | null {
+  if (!sas) return null;
+  return (
+    sas.downloadUrl ||
+    sas.url ||
+    sas.sasUrl ||
+    sas.signedUrl ||
+    sas.readUrl ||
+    sas.blobUrlWithSas ||
+    null
   );
 }
 
@@ -67,6 +98,21 @@ export default function EventsPage() {
   >(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
 
+  // ---------- “Details panel” selection ----------
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+  // ---------- Card metadata (cover + counts) ----------
+  const [cardMeta, setCardMeta] = useState<
+    Record<
+      string,
+      {
+        coverUrl?: string;
+        mediaCount: number;
+        contributorCount: number;
+      }
+    >
+  >({});
+
   function bumpRefresh(eventId: string) {
     setMediaRefresh((prev) => ({
       ...prev,
@@ -81,6 +127,15 @@ export default function EventsPage() {
         e.eventId === eventId ? { ...e, memberIds: cleaned } : e
       )
     );
+
+    // keep card contributor count in sync
+    setCardMeta((prev) => ({
+      ...prev,
+      [eventId]: {
+        ...(prev[eventId] ?? { mediaCount: 0, contributorCount: 0 }),
+        contributorCount: cleaned.length,
+      },
+    }));
   }
 
   function canManageMembers(ev: EventDoc): boolean {
@@ -96,6 +151,54 @@ export default function EventsPage() {
     try {
       const data = await apiGet<EventDoc[]>("/events");
       setEvents(data);
+
+      // build card meta: contributors from memberIds; media counts and a cover (best-effort)
+      const baseMeta: Record<
+        string,
+        { coverUrl?: string; mediaCount: number; contributorCount: number }
+      > = {};
+      for (const ev of data ?? []) {
+        baseMeta[ev.eventId] = {
+          coverUrl: undefined,
+          mediaCount: 0,
+          contributorCount: uniqueStrings(ev.memberIds ?? []).length,
+        };
+      }
+      setCardMeta(baseMeta);
+
+      // best-effort fetch cover + mediaCount per event (safe even if some fail)
+      await Promise.all(
+        (data ?? []).map(async (ev) => {
+          try {
+            const items = await apiGet<MediaDoc[]>(
+              `/events/${ev.eventId}/media`
+            );
+            const mediaCount = (items ?? []).length;
+
+            // pick first item as cover
+            let coverUrl: string | undefined;
+            const first = (items ?? [])[0];
+            if (first) {
+              const sas = await apiGet<any>(
+                `/events/${ev.eventId}/media/${first.mediaId}/sas`
+              );
+              const url = pickDisplayUrl(sas);
+              if (url) coverUrl = url;
+            }
+
+            setCardMeta((prev) => ({
+              ...prev,
+              [ev.eventId]: {
+                ...(prev[ev.eventId] ?? { mediaCount: 0, contributorCount: 0 }),
+                mediaCount,
+                coverUrl,
+              },
+            }));
+          } catch {
+            // ignore card meta failure (event list still loads)
+          }
+        })
+      );
     } catch (e: any) {
       setError(e.message);
     }
@@ -190,6 +293,10 @@ export default function EventsPage() {
       await apiDeleteRaw(`/events/${ev.eventId}`);
       setDeletingEventId(null);
       setConfirmDeleteEventId(null);
+
+      // if deleted event was selected, close details
+      if (selectedEventId === ev.eventId) setSelectedEventId(null);
+
       await load();
     } catch (e: any) {
       setDeletingEventId(null);
@@ -206,93 +313,242 @@ export default function EventsPage() {
     load();
   }, []);
 
+  const selectedEvent = useMemo(
+    () => events.find((e) => e.eventId === selectedEventId) || null,
+    [events, selectedEventId]
+  );
+
   return (
-    <div
-      style={{ maxWidth: 720, margin: "40px auto", fontFamily: "system-ui" }}
-    >
+    <div style={{ fontFamily: "system-ui" }}>
+      {/* Top bar (matches “Memory Wall” style) */}
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 12,
-          alignItems: "center",
-          marginBottom: 10,
+          borderBottom: "1px solid #eee",
+          background: "#fff",
         }}
       >
-        <h1 style={{ margin: 0 }}>Event Memory Wall</h1>
+        <div
+          style={{
+            maxWidth: 1100,
+            margin: "0 auto",
+            padding: "18px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+          }}
+        >
+          <div style={{ fontSize: 22, fontWeight: 800 }}>Memory Wall</div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ fontSize: 12, opacity: 0.75 }}>
-            {session?.userId ? (
-              <>
-                Signed in as <strong>{session.userId}</strong>{" "}
-                <span style={{ opacity: 0.75 }}>
-                  ({admin ? "admin" : "user"})
-                </span>
-              </>
-            ) : (
-              <>Not signed in</>
-            )}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>
+              {session?.userId ? (
+                <>
+                  Signed in as <strong>{session.userId}</strong>{" "}
+                  <span style={{ opacity: 0.75 }}>
+                    ({admin ? "admin" : "user"})
+                  </span>
+                </>
+              ) : (
+                <>Not signed in</>
+              )}
+            </div>
+
+            <button
+              onClick={logout}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid #ddd",
+                background: "#fff",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Log out
+            </button>
+
+            <button
+              onClick={create}
+              disabled={!myUserId || !title.trim()}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid #111",
+                background: "#0b0b1a",
+                color: "#fff",
+                cursor: !myUserId || !title.trim() ? "not-allowed" : "pointer",
+                opacity: !myUserId || !title.trim() ? 0.6 : 1,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+              title={!myUserId ? "Sign in to create" : ""}
+            >
+              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+              Create Event
+            </button>
           </div>
+        </div>
+      </div>
 
-          <button
-            onClick={logout}
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "22px 20px" }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>Your Events</div>
+          <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
+            Browse and share photos from your memorable events
+          </div>
+        </div>
+
+        {/* Create title input (kept, but styled to fit the new bar) */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={myUserId ? "New event title" : "Sign in to create"}
             style={{
-              padding: "8px 12px",
-              borderRadius: 8,
+              flex: 1,
+              padding: 12,
+              borderRadius: 12,
               border: "1px solid #ddd",
-              background: "#fff",
-              cursor: "pointer",
+              outline: "none",
+            }}
+            disabled={!myUserId}
+          />
+        </div>
+
+        {error && (
+          <div
+            style={{
+              padding: 12,
+              background: "#fee",
+              marginBottom: 12,
+              borderRadius: 10,
             }}
           >
-            Log out
-          </button>
-        </div>
-      </div>
+            {error}
+          </div>
+        )}
 
-      {/* Create event (signed-in users can create) */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={myUserId ? "New event title" : "Sign in to create"}
-          style={{ flex: 1, padding: 10 }}
-          disabled={!myUserId}
-        />
-        <button
-          onClick={create}
-          style={{ padding: "10px 14px" }}
-          disabled={!myUserId}
+        {/* Event cards grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+            gap: 18,
+          }}
         >
-          Create
-        </button>
-      </div>
+          {events.map((ev) => {
+            const meta = cardMeta[ev.eventId];
+            const cover = meta?.coverUrl;
+            const mediaCount = meta?.mediaCount ?? 0;
+            const contributorCount =
+              meta?.contributorCount ??
+              uniqueStrings(ev.memberIds ?? []).length;
+            const dateLabel = formatDate(ev.createdAt);
 
-      {error && (
-        <div style={{ padding: 10, background: "#fee", marginBottom: 12 }}>
-          {error}
+            const isSelected = selectedEventId === ev.eventId;
+
+            return (
+              <button
+                key={ev.id}
+                onClick={() => setSelectedEventId(ev.eventId)}
+                style={{
+                  textAlign: "left",
+                  border: isSelected ? "2px solid #111" : "1px solid #eee",
+                  background: "#fff",
+                  borderRadius: 14,
+                  overflow: "hidden",
+                  padding: 0,
+                  cursor: "pointer",
+                  boxShadow: "0 1px 0 rgba(0,0,0,0.02)",
+                }}
+              >
+                <div
+                  style={{
+                    position: "relative",
+                    height: 190,
+                    background: "#f3f3f3",
+                  }}
+                >
+                  {cover ? (
+                    <img
+                      src={cover}
+                      alt=""
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#888",
+                        fontSize: 13,
+                      }}
+                    >
+                      No cover yet
+                    </div>
+                  )}
+
+                  {/* bottom gradient overlay */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      padding: 12,
+                      background:
+                        "linear-gradient(transparent, rgba(0,0,0,0.65))",
+                      color: "#fff",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 15 }}>
+                      {ev.title}
+                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>
+                      {dateLabel}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: 12,
+                    fontSize: 13,
+                    color: "#333",
+                  }}
+                >
+                  <div style={{ opacity: 0.85 }}>{mediaCount} photos</div>
+                  <div style={{ opacity: 0.85 }}>
+                    {contributorCount} contributors
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
-      )}
 
-      <h2>Events</h2>
-
-      <div style={{ display: "grid", gap: 18 }}>
-        {events.map((ev) => {
-          const isEditing = editingEventId === ev.eventId;
-          const isConfirmingDelete = confirmDeleteEventId === ev.eventId;
-          const isDeleting = deletingEventId === ev.eventId;
-
-          const membersClean = uniqueStrings(ev.memberIds ?? []);
-
-          const canManage = canManageMembers(ev);
-
-          return (
+        {/* Selected event details panel (keeps your existing functionality) */}
+        {selectedEvent && (
+          <div style={{ marginTop: 26 }}>
             <div
-              key={ev.id}
               style={{
-                padding: 14,
+                padding: 16,
                 border: "1px solid #eee",
-                borderRadius: 10,
+                borderRadius: 14,
                 background: "#fff",
               }}
             >
@@ -306,10 +562,10 @@ export default function EventsPage() {
                 }}
               >
                 <div style={{ flex: 1 }}>
-                  {!isEditing ? (
-                    <>
-                      <div style={{ fontWeight: 700 }}>{ev.title}</div>
-                    </>
+                  {editingEventId !== selectedEvent.eventId ? (
+                    <div style={{ fontWeight: 800, fontSize: 18 }}>
+                      {selectedEvent.title}
+                    </div>
                   ) : (
                     <>
                       <div style={{ fontSize: 12, opacity: 0.7 }}>
@@ -318,54 +574,65 @@ export default function EventsPage() {
                       <input
                         value={editTitle}
                         onChange={(e) => setEditTitle(e.target.value)}
-                        style={{ width: "100%", padding: 8, marginTop: 6 }}
+                        style={{
+                          width: "100%",
+                          padding: 10,
+                          marginTop: 8,
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                        }}
                       />
                     </>
                   )}
                 </div>
 
-                {/* Right-side controls — ADMIN ONLY */}
-                {admin && !isEditing && !isConfirmingDelete && (
+                {/* ADMIN ONLY controls */}
+                {admin &&
+                  editingEventId !== selectedEvent.eventId &&
+                  confirmDeleteEventId !== selectedEvent.eventId && (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => startEdit(selectedEvent)}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                          background: "#fff",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() => requestDelete(selectedEvent)}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          border: "1px solid #ddd",
+                          background: "#fff",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Delete Event
+                      </button>
+                    </div>
+                  )}
+
+                {/* ADMIN ONLY edit controls */}
+                {admin && editingEventId === selectedEvent.eventId && (
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
-                      onClick={() => startEdit(ev)}
+                      onClick={() => saveEdit(selectedEvent.eventId)}
                       style={{
                         padding: "8px 12px",
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: "1px solid #ddd",
                         background: "#fff",
                         cursor: "pointer",
-                      }}
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      onClick={() => requestDelete(ev)}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Delete Event
-                    </button>
-                  </div>
-                )}
-
-                {/* Edit controls — ADMIN ONLY */}
-                {admin && isEditing && (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={() => saveEdit(ev.eventId)}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: "pointer",
+                        fontWeight: 600,
                       }}
                     >
                       Save
@@ -374,10 +641,11 @@ export default function EventsPage() {
                       onClick={cancelEdit}
                       style={{
                         padding: "8px 12px",
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: "1px solid #ddd",
                         background: "#fff",
                         cursor: "pointer",
+                        fontWeight: 600,
                       }}
                     >
                       Cancel
@@ -386,26 +654,35 @@ export default function EventsPage() {
                 )}
               </div>
 
-              {/* Members panel — visible if you are admin OR a member (backend enforces too) */}
-              {(admin || canManage) && (
-                <MembersPanel
-                  eventId={ev.eventId}
-                  members={membersClean}
-                  ownerId={ev.ownerId}
-                  canManage={canManage} // member or admin
-                  onChanged={(next) => updateEventMembers(ev.eventId, next)}
-                />
-              )}
+              {/* Members panel — visible if you are admin OR a member */}
+              {(() => {
+                const membersClean = uniqueStrings(
+                  selectedEvent.memberIds ?? []
+                );
+                const canManage = canManageMembers(selectedEvent);
 
-              {/* Inline delete confirmation row — ADMIN ONLY */}
-              {admin && isConfirmingDelete && (
+                return admin || canManage ? (
+                  <MembersPanel
+                    eventId={selectedEvent.eventId}
+                    members={membersClean}
+                    ownerId={selectedEvent.ownerId}
+                    canManage={canManage}
+                    onChanged={(next) =>
+                      updateEventMembers(selectedEvent.eventId, next)
+                    }
+                  />
+                ) : null;
+              })()}
+
+              {/* Inline delete confirmation — ADMIN ONLY */}
+              {admin && confirmDeleteEventId === selectedEvent.eventId && (
                 <div
                   style={{
-                    marginTop: 10,
-                    padding: 10,
+                    marginTop: 12,
+                    padding: 12,
                     border: "1px solid #f2c2c2",
                     background: "#fff7f7",
-                    borderRadius: 10,
+                    borderRadius: 12,
                     display: "flex",
                     justifyContent: "space-between",
                     gap: 10,
@@ -413,62 +690,74 @@ export default function EventsPage() {
                   }}
                 >
                   <div style={{ fontSize: 13 }}>
-                    Delete <strong>{ev.title}</strong>? This will also delete
-                    all media under the event.
+                    Delete <strong>{selectedEvent.title}</strong>? This will
+                    also delete all media under the event.
                   </div>
 
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       onClick={cancelDelete}
-                      disabled={isDeleting}
+                      disabled={deletingEventId === selectedEvent.eventId}
                       style={{
                         padding: "8px 12px",
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: "1px solid #ddd",
                         background: "#fff",
-                        cursor: isDeleting ? "not-allowed" : "pointer",
-                        opacity: isDeleting ? 0.6 : 1,
+                        cursor:
+                          deletingEventId === selectedEvent.eventId
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          deletingEventId === selectedEvent.eventId ? 0.6 : 1,
+                        fontWeight: 600,
                       }}
                     >
                       Cancel
                     </button>
                     <button
-                      onClick={() => confirmDelete(ev)}
-                      disabled={isDeleting}
+                      onClick={() => confirmDelete(selectedEvent)}
+                      disabled={deletingEventId === selectedEvent.eventId}
                       style={{
                         padding: "8px 12px",
-                        borderRadius: 8,
+                        borderRadius: 10,
                         border: "1px solid #ddd",
                         background: "#fff",
-                        cursor: isDeleting ? "not-allowed" : "pointer",
-                        opacity: isDeleting ? 0.6 : 1,
+                        cursor:
+                          deletingEventId === selectedEvent.eventId
+                            ? "not-allowed"
+                            : "pointer",
+                        opacity:
+                          deletingEventId === selectedEvent.eventId ? 0.6 : 1,
+                        fontWeight: 600,
                       }}
                     >
-                      {isDeleting ? "Deleting..." : "Confirm delete"}
+                      {deletingEventId === selectedEvent.eventId
+                        ? "Deleting..."
+                        : "Confirm delete"}
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Upload — ALL USERS (backend enforces membership) */}
-              <div style={{ marginTop: 12 }}>
+              {/* Upload */}
+              <div style={{ marginTop: 14 }}>
                 <UploadMedia
-                  eventId={ev.eventId}
-                  onUploaded={() => bumpRefresh(ev.eventId)}
+                  eventId={selectedEvent.eventId}
+                  onUploaded={() => bumpRefresh(selectedEvent.eventId)}
                 />
               </div>
 
-              {/* Gallery — ALL USERS (backend enforces membership for list/read/delete) */}
-              <div style={{ marginTop: 12 }}>
+              {/* Gallery */}
+              <div style={{ marginTop: 10 }}>
                 <MediaGallery
-                  eventId={ev.eventId}
-                  refreshKey={mediaRefresh[ev.eventId] ?? 0}
-                  onDeleted={() => bumpRefresh(ev.eventId)}
+                  eventId={selectedEvent.eventId}
+                  refreshKey={mediaRefresh[selectedEvent.eventId] ?? 0}
+                  onDeleted={() => bumpRefresh(selectedEvent.eventId)}
                 />
               </div>
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
     </div>
   );

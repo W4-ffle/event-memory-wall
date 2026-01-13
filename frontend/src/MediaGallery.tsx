@@ -57,7 +57,13 @@ export default function MediaGallery({
             );
 
             const displayUrl = pickDisplayUrl(sas);
-            if (!displayUrl) throw new Error("Invalid SAS response");
+
+            if (!displayUrl) {
+              const keys = Object.keys(sas ?? {}).join(", ");
+              throw new Error(
+                `SAS response missing read url (mediaId=${m.mediaId}). Keys: ${keys}`
+              );
+            }
 
             return { ...m, displayUrl };
           })
@@ -83,6 +89,7 @@ export default function MediaGallery({
 
     try {
       await apiDeleteRaw(`/events/${eventId}/media/${mediaId}`);
+      // keep your existing refresh contract
       onDeleted?.();
     } catch (e: any) {
       setError(e?.message ?? "Delete failed.");
@@ -109,37 +116,52 @@ export default function MediaGallery({
           key={m.mediaId}
           style={{
             border: "1px solid #eee",
-            borderRadius: 8,
-            padding: 8,
+            borderRadius: 10,
+            padding: 10,
             background: "#fff",
           }}
         >
-          {m.type === "IMAGE" ? (
-            <img
-              src={m.displayUrl}
-              alt=""
-              style={{ width: "100%", borderRadius: 6 }}
-              loading="lazy"
-            />
-          ) : (
-            <video
-              src={m.displayUrl}
-              controls
-              style={{ width: "100%", borderRadius: 6 }}
-            />
-          )}
+          <div
+            style={{
+              width: "100%",
+              borderRadius: 10,
+              overflow: "hidden",
+              background: "#f6f6f6",
+              aspectRatio: "1 / 1",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {m.type === "IMAGE" ? (
+              <img
+                src={m.displayUrl}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                loading="lazy"
+              />
+            ) : (
+              <video
+                src={m.displayUrl}
+                controls
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            )}
+          </div>
 
           <button
             onClick={() => onDelete(m.mediaId)}
             disabled={deleting === m.mediaId}
             style={{
-              marginTop: 8,
+              marginTop: 10,
               width: "100%",
-              padding: "8px 10px",
-              borderRadius: 6,
+              padding: "10px 12px",
+              borderRadius: 10,
               border: "1px solid #ddd",
               background: "#fff",
               cursor: deleting === m.mediaId ? "not-allowed" : "pointer",
+              opacity: deleting === m.mediaId ? 0.7 : 1,
+              fontWeight: 600,
             }}
           >
             {deleting === m.mediaId ? "Deleting..." : "Delete"}
