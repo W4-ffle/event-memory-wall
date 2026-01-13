@@ -1,53 +1,115 @@
-import { HttpRequest, InvocationContext } from "@azure/functions";
-import { randomUUID } from "crypto";
-import { json, badRequest, serverError } from "../src/shared/http";
-import { makeUploadSas } from "../src/shared/blob";
+import {
+  BlobSASPermissions,
+  StorageSharedKeyCredential,
+  generateBlobSASQueryParameters,
+} from "@azure/storage-blob";
+import { env } from "../src/shared/env";
 
-export default async function (req: HttpRequest, context: InvocationContext) {
+function getHeader(req: any, name: string): string | undefined {
+  const h = (req?.headers ?? {}) as Record<string, any>;
+  return h[name] || h[name.toLowerCase()] || h[name.toUpperCase()];
+}
+
+function parseJsonBody(req: any): any | null {
+  const raw = req?.body;
+  if (!raw) return null;
+  if (typeof raw === "object") return raw;
   try {
-    const hostId = req.headers.get("x-host-id") || "demo-host";
-    const eventId = (context as any)?.bindingData?.eventId;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
+// Web Crypto UUID (no Node import)
+function uuid(): string {
+  // crypto.randomUUID exists in modern runtimes (and TS knows it via DOM lib)
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+
+  // Fallback (good enough for CW2)
+  const s = () =>
+    Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .slice(1);
+  return `${s()}${s()}-${s()}-${s()}-${s()}-${s()}${s()}${s()}`;
+}
+
+export default async function (context: any, req: any): Promise<void> {
+  try {
+    const eventId = context?.bindingData?.eventId as string;
     if (!eventId) {
-      badRequest(context, "Missing eventId in route");
+      context.res = {
+        status: 400,
+        body: { error: "eventId missing in route" },
+      };
       return;
     }
 
-    let body: any;
-    try {
-      body = await req.json();
-    } catch {
-      badRequest(context, "Invalid or missing JSON body");
+    const hostId = getHeader(req, "x-host-id") || "demo-host";
+
+    const body = parseJsonBody(req);
+    if (!body?.fileName || !body?.contentType) {
+      context.res = {
+        status: 400,
+        body: { error: "fileName and contentType are required" },
+      };
       return;
     }
 
-    const fileName = body?.fileName;
-    const contentType = body?.contentType;
+    const account = env("STORAGE_ACCOUNT_NAME");
+    const key = env("STORAGE_ACCOUNT_KEY");
+    const containerName = env("MEDIA_CONTAINER_NAME");
 
-    if (!fileName || typeof fileName !== "string") {
-      badRequest(context, "fileName is required");
+    if (!account || !key || !containerName) {
+      context.res = {
+        status: 500,
+        body: {
+          error:
+            "Missing STORAGE_ACCOUNT_NAME / STORAGE_ACCOUNT_KEY / MEDIA_CONTAINER_NAME",
+        },
+      };
       return;
     }
 
-    // Create a unique blob name under the event folder
-    const mediaId = `media_${randomUUID()}`;
-    const safeName = fileName.replace(/[^\w.\-]+/g, "_");
-    const blobName = `${hostId}/${eventId}/${mediaId}_${safeName}`;
+    const safeName = String(body.fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const blobName = `${hostId}/${eventId}/${uuid()}_${safeName}`;
 
-    const sas = makeUploadSas(blobName);
+    const credential = new StorageSharedKeyCredential(account, key);
+    const expiresOn = new Date(Date.now() + 10 * 60 * 1000);
 
-    json(context, 200, {
-      mediaId,
-      eventId,
-      hostId,
-      uploadUrl: sas.url, // PUT the file to this
-      blobUrl: sas.blobUrl, // store this in Cosmos metadata
-      expiresOn: sas.expiresOn,
-      contentType: contentType || "application/octet-stream",
-    });
+    const sas = generateBlobSASQueryParameters(
+      {
+        containerName,
+        blobName,
+        permissions: BlobSASPermissions.parse("cw"),
+        expiresOn,
+      },
+      credential
+    ).toString();
+
+    const blobUrl = `https://${account}.blob.core.windows.net/${containerName}/${blobName}`;
+    const uploadUrl = `${blobUrl}?${sas}`;
+
+    context.res = {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: {
+        uploadUrl,
+        blobUrl,
+        blobName,
+        expiresOn: expiresOn.toISOString(),
+      },
+    };
   } catch (err: any) {
     context.log("MediaSas error:", err?.message);
     context.log(err?.stack);
-    serverError(context, err);
+    context.res = {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: {
+        error: "Internal server error",
+        message: err?.message ?? "Unknown error",
+      },
+    };
   }
 }
