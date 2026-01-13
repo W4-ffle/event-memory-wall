@@ -1,17 +1,14 @@
 import { useState } from "react";
-import { apiPostRaw } from "./api";
+import { apiPost } from "./api";
 
 type SasResponse = {
-  // backend may return either name depending on your implementation
-  uploadUrl?: string;
-  url?: string;
-
+  uploadUrl: string;
   blobUrl: string;
-  blobName?: string;
+  blobName: string;
   expiresOn?: string;
-
-  // only present if you implemented it server-side
-  mediaId?: string;
+  contentType?: string;
+  eventId: string;
+  hostId: string;
 };
 
 export default function UploadMedia({
@@ -21,76 +18,79 @@ export default function UploadMedia({
   eventId: string;
   onUploaded?: () => void;
 }) {
-  const [msg, setMsg] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
-  async function onPick(file: File | null) {
-    if (!file) return;
+  async function uploadOne(file: File) {
+    // 1) Get SAS for this file
+    const sas = await apiPost<SasResponse>(`/events/${eventId}/media/sas`, {
+      fileName: file.name,
+      contentType: file.type || "application/octet-stream",
+    });
+
+    // 2) Upload to Blob via SAS (PUT)
+    const putRes = await fetch(sas.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "x-ms-blob-type": "BlockBlob",
+        "Content-Type": file.type || "application/octet-stream",
+      },
+      body: file,
+    });
+
+    if (!putRes.ok) {
+      const text = await putRes.text().catch(() => "");
+      throw new Error(`Blob upload failed: ${putRes.status} ${text}`);
+    }
+
+    // 3) Save metadata in Cosmos
+    await apiPost(`/events/${eventId}/media`, {
+      blobUrl: sas.blobUrl,
+      fileName: file.name,
+      contentType: file.type || "application/octet-stream",
+      size: file.size,
+      type: "IMAGE", // or detect by file.type if you support VIDEO too
+    });
+  }
+
+  async function onPickFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+
+    setBusy(true);
+    setMsg(null);
 
     try {
-      setMsg("Requesting upload URL...");
-
-      // 1) Ask API for SAS URL
-      const sas = (await apiPostRaw(`/events/${eventId}/media/sas`, {
-        fileName: file.name,
-        contentType: file.type || "application/octet-stream",
-      })) as SasResponse;
-
-      const uploadUrl = sas.uploadUrl || sas.url;
-      if (!uploadUrl || !sas.blobUrl) {
-        throw new Error(
-          "SAS response missing uploadUrl/url or blobUrl. Check MediaSas response shape."
-        );
+      // sequential upload (easy + stable)
+      for (const file of Array.from(files)) {
+        await uploadOne(file);
       }
 
-      // 2) Upload directly to Blob using SAS (browser PUT)
-      setMsg("Uploading to Blob Storage...");
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "x-ms-blob-type": "BlockBlob",
-          "Content-Type": file.type || "application/octet-stream",
-        },
-        body: file,
-      });
-
-      if (!putRes.ok) {
-        const text = await putRes.text().catch(() => "");
-        throw new Error(`Blob upload failed: ${putRes.status} ${text}`);
-      }
-
-      // 3) Store metadata in Cosmos
-      setMsg("Saving metadata...");
-      await apiPostRaw(`/events/${eventId}/media`, {
-        mediaId: sas.mediaId || `media_${crypto.randomUUID()}`,
-        blobUrl: sas.blobUrl,
-        type: file.type.startsWith("video") ? "VIDEO" : "IMAGE",
-        fileName: file.name,
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
-        createdAt: new Date().toISOString(),
-      });
-
-      setMsg("Done.");
-
-      // 4) Trigger gallery refresh in parent
+      setMsg(`Uploaded ${files.length} file${files.length > 1 ? "s" : ""}.`);
       onUploaded?.();
     } catch (e: any) {
-      setMsg(e?.message || "Upload failed");
-      throw e;
+      setMsg(e?.message ?? "Upload failed.");
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
-    <div style={{ marginTop: 16 }}>
-      <label>
-        <strong>Upload media:</strong>{" "}
-        <input
-          type="file"
-          accept="image/*,video/*"
-          onChange={(e) => onPick(e.target.files?.[0] ?? null)}
-        />
-      </label>
-      <div style={{ marginTop: 8 }}>{msg}</div>
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 600 }}>Upload media:</div>
+
+      <input
+        type="file"
+        multiple
+        disabled={busy}
+        onChange={(e) => {
+          void onPickFiles(e.target.files);
+          // allow picking the same files again later
+          e.currentTarget.value = "";
+        }}
+      />
+
+      {busy && <div style={{ fontSize: 12, opacity: 0.75 }}>Uploading...</div>}
+      {msg && <div style={{ fontSize: 12, opacity: 0.85 }}>{msg}</div>}
     </div>
   );
 }
