@@ -17,8 +17,15 @@ export default function EventsPage() {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // per-event refresh counter (bump after uploads)
+  // per-event refresh counter (bump after uploads/deletes)
   const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
+
+  function bumpRefresh(eventId: string) {
+    setMediaRefresh((prev) => ({
+      ...prev,
+      [eventId]: (prev[eventId] ?? 0) + 1,
+    }));
+  }
 
   async function load() {
     setError(null);
@@ -98,12 +105,7 @@ export default function EventsPage() {
             <div style={{ marginTop: 12 }}>
               <UploadMedia
                 eventId={ev.eventId}
-                onUploaded={() =>
-                  setMediaRefresh((prev) => ({
-                    ...prev,
-                    [ev.eventId]: (prev[ev.eventId] ?? 0) + 1,
-                  }))
-                }
+                onUploaded={() => bumpRefresh(ev.eventId)}
               />
             </div>
 
@@ -111,6 +113,7 @@ export default function EventsPage() {
               <MediaGallery
                 eventId={ev.eventId}
                 refreshKey={mediaRefresh[ev.eventId] ?? 0}
+                onDeleted={() => bumpRefresh(ev.eventId)}
               />
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiGet } from "./api";
+import { apiGet, apiDeleteRaw } from "./api";
 
 type MediaDoc = {
   mediaId: string;
@@ -22,7 +22,6 @@ function pickDisplayUrl(sas: any): string | null {
     sas.signedUrl ||
     sas.readUrl ||
     sas.blobUrlWithSas ||
-    sas.uploadUrl || // last-resort fallback if your API reused the key name
     null
   );
 }
@@ -30,13 +29,16 @@ function pickDisplayUrl(sas: any): string | null {
 export default function MediaGallery({
   eventId,
   refreshKey,
+  onDeleted,
 }: {
   eventId: string;
   refreshKey?: number;
+  onDeleted?: () => void;
 }) {
   const [media, setMedia] = useState<MediaWithDisplayUrl[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,13 +48,10 @@ export default function MediaGallery({
       setError(null);
 
       try {
-        // 1) Get metadata list from Cosmos (no blob access required)
         const items = await apiGet<MediaDoc[]>(`/events/${eventId}/media`);
 
-        // 2) For each media item, request a READ-SAS URL from the API
         const resolved: MediaWithDisplayUrl[] = await Promise.all(
           (items ?? []).map(async (m) => {
-            // Expected endpoint: /events/{eventId}/media/{mediaId}/sas
             const sas = await apiGet<any>(
               `/events/${eventId}/media/${m.mediaId}/sas`
             );
@@ -82,7 +81,21 @@ export default function MediaGallery({
     return () => {
       cancelled = true;
     };
-  }, [eventId, refreshKey]); // <- refresh after upload
+  }, [eventId, refreshKey]);
+
+  async function onDelete(mediaId: string) {
+    setError(null);
+    setDeleting(mediaId);
+
+    try {
+      await apiDeleteRaw(`/events/${eventId}/media/${mediaId}`);
+      onDeleted?.();
+    } catch (e: any) {
+      setError(e?.message ?? "Delete failed.");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   if (loading) return <div>Loading media...</div>;
   if (error) return <div style={{ color: "red" }}>{error}</div>;
@@ -98,7 +111,10 @@ export default function MediaGallery({
       }}
     >
       {media.map((m) => (
-        <div key={m.mediaId}>
+        <div
+          key={m.mediaId}
+          style={{ border: "1px solid #eee", borderRadius: 8, padding: 8 }}
+        >
           {m.type === "IMAGE" ? (
             <img
               src={m.displayUrl}
@@ -113,7 +129,26 @@ export default function MediaGallery({
               style={{ width: "100%", borderRadius: 6 }}
             />
           )}
-          <div style={{ fontSize: 12, marginTop: 6 }}>{m.fileName}</div>
+
+          <div style={{ fontSize: 12, marginTop: 6, wordBreak: "break-word" }}>
+            {m.fileName}
+          </div>
+
+          <button
+            onClick={() => onDelete(m.mediaId)}
+            disabled={deleting === m.mediaId}
+            style={{
+              marginTop: 8,
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 6,
+              border: "1px solid #ddd",
+              background: "#fff",
+              cursor: deleting === m.mediaId ? "not-allowed" : "pointer",
+            }}
+          >
+            {deleting === m.mediaId ? "Deleting..." : "Delete"}
+          </button>
         </div>
       ))}
     </div>

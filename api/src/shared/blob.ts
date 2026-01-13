@@ -2,6 +2,7 @@ import {
   StorageSharedKeyCredential,
   generateBlobSASQueryParameters,
   BlobSASPermissions,
+  BlobServiceClient,
 } from "@azure/storage-blob";
 
 function required(name: string): string {
@@ -17,11 +18,19 @@ function getCred() {
   return { accountName, cred };
 }
 
+/**
+ * Create a short-lived SAS URL for uploading (create + write).
+ * Returns:
+ *  - url: full SAS URL to PUT to
+ *  - blobUrl: base URL (no SAS)
+ *  - expiresOn
+ */
 export function makeUploadSas(blobName: string) {
   const { accountName, cred } = getCred();
   const containerName = required("MEDIA_CONTAINER_NAME");
 
   const expiresOn = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
   const sas = generateBlobSASQueryParameters(
     {
       containerName,
@@ -32,12 +41,18 @@ export function makeUploadSas(blobName: string) {
     cred
   ).toString();
 
-  const url = `https://${accountName}.blob.core.windows.net/${containerName}/${blobName}?${sas}`;
   const blobUrl = `https://${accountName}.blob.core.windows.net/${containerName}/${blobName}`;
+  const url = `${blobUrl}?${sas}`;
 
   return { url, blobUrl, expiresOn: expiresOn.toISOString() };
 }
 
+/**
+ * Create a short-lived SAS URL for reading (read-only) from a stored blobUrl.
+ * Returns:
+ *  - readUrl: full SAS URL to GET
+ *  - expiresOn
+ */
 export function makeReadSasFromBlobUrl(blobUrl: string) {
   const { accountName, cred } = getCred();
   const containerName = required("MEDIA_CONTAINER_NAME");
@@ -53,6 +68,7 @@ export function makeReadSasFromBlobUrl(blobUrl: string) {
   const blobName = blobUrl.substring(idx + marker.length);
 
   const expiresOn = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+
   const sas = generateBlobSASQueryParameters(
     {
       containerName,
@@ -65,4 +81,39 @@ export function makeReadSasFromBlobUrl(blobUrl: string) {
 
   const readUrl = `https://${accountName}.blob.core.windows.net/${containerName}/${blobName}?${sas}`;
   return { readUrl, expiresOn: expiresOn.toISOString() };
+}
+
+function parseBlobUrl(blobUrl: string): {
+  container: string;
+  blobName: string;
+} {
+  const u = new URL(blobUrl);
+  // pathname: /<container>/<blobName...>
+  const parts = u.pathname.replace(/^\/+/, "").split("/");
+  const container = parts.shift() || "";
+  const blobName = parts.join("/");
+  return { container, blobName };
+}
+
+/**
+ * Best-effort blob delete by URL. Use inside a try/catch and do not fail the whole request if it errors.
+ * This uses the account key (server-side), so it can delete even when the container is private.
+ */
+export async function deleteBlobIfPossible(blobUrl: string): Promise<void> {
+  const { accountName, cred } = getCred();
+
+  const { container, blobName } = parseBlobUrl(blobUrl);
+  if (!container || !blobName) return;
+
+  const service = new BlobServiceClient(
+    `https://${accountName}.blob.core.windows.net`,
+    cred
+  );
+
+  const blobClient = service
+    .getContainerClient(container)
+    .getBlobClient(blobName);
+
+  // deleteIfExists avoids throwing if it's already gone (common with retries)
+  await blobClient.deleteIfExists();
 }
