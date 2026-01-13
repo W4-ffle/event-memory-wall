@@ -17,6 +17,9 @@ export default function EventsPage() {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // per-event refresh counter (bump after uploads)
+  const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
+
   async function load() {
     setError(null);
     try {
@@ -93,13 +96,22 @@ export default function EventsPage() {
             </div>
 
             <div style={{ marginTop: 12 }}>
-              <UploadMedia eventId={ev.eventId} />
+              <UploadMedia
+                eventId={ev.eventId}
+                onUploaded={() =>
+                  setMediaRefresh((prev) => ({
+                    ...prev,
+                    [ev.eventId]: (prev[ev.eventId] ?? 0) + 1,
+                  }))
+                }
+              />
             </div>
 
             <div style={{ marginTop: 12 }}>
-              {/* you already have this component */}
-              {/* import MediaGallery from "./MediaGallery"; at the top if needed */}
-              <MediaGallery eventId={ev.eventId} />
+              <MediaGallery
+                eventId={ev.eventId}
+                refreshKey={mediaRefresh[ev.eventId] ?? 0}
+              />
             </div>
           </div>
         ))}

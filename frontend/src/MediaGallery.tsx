@@ -27,7 +27,13 @@ function pickDisplayUrl(sas: any): string | null {
   );
 }
 
-export default function MediaGallery({ eventId }: { eventId: string }) {
+export default function MediaGallery({
+  eventId,
+  refreshKey,
+}: {
+  eventId: string;
+  refreshKey?: number;
+}) {
   const [media, setMedia] = useState<MediaWithDisplayUrl[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +53,6 @@ export default function MediaGallery({ eventId }: { eventId: string }) {
         const resolved: MediaWithDisplayUrl[] = await Promise.all(
           (items ?? []).map(async (m) => {
             // Expected endpoint: /events/{eventId}/media/{mediaId}/sas
-            // If yours is different, change this one line.
             const sas = await apiGet<any>(
               `/events/${eventId}/media/${m.mediaId}/sas`
             );
@@ -77,19 +82,11 @@ export default function MediaGallery({ eventId }: { eventId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, refreshKey]); // <- refresh after upload
 
-  if (loading) {
-    return <div>Loading media...</div>;
-  }
-
-  if (error) {
-    return <div style={{ color: "red" }}>{error}</div>;
-  }
-
-  if (!media.length) {
-    return <div>No media yet.</div>;
-  }
+  if (loading) return <div>Loading media...</div>;
+  if (error) return <div style={{ color: "red" }}>{error}</div>;
+  if (!media.length) return <div>No media yet.</div>;
 
   return (
     <div

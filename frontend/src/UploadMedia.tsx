@@ -14,7 +14,13 @@ type SasResponse = {
   mediaId?: string;
 };
 
-export default function UploadMedia({ eventId }: { eventId: string }) {
+export default function UploadMedia({
+  eventId,
+  onUploaded,
+}: {
+  eventId: string;
+  onUploaded?: () => void;
+}) {
   const [msg, setMsg] = useState<string>("");
 
   async function onPick(file: File | null) {
@@ -48,15 +54,13 @@ export default function UploadMedia({ eventId }: { eventId: string }) {
       });
 
       if (!putRes.ok) {
-        // helpful error payload (Azure often returns XML)
         const text = await putRes.text().catch(() => "");
         throw new Error(`Blob upload failed: ${putRes.status} ${text}`);
       }
 
-      // 3) Store metadata in Cosmos (your API must support this route)
+      // 3) Store metadata in Cosmos
       setMsg("Saving metadata...");
       await apiPostRaw(`/events/${eventId}/media`, {
-        // if you did not implement mediaId in MediaSas, generate client-side for now
         mediaId: sas.mediaId || `media_${crypto.randomUUID()}`,
         blobUrl: sas.blobUrl,
         type: file.type.startsWith("video") ? "VIDEO" : "IMAGE",
@@ -67,9 +71,12 @@ export default function UploadMedia({ eventId }: { eventId: string }) {
       });
 
       setMsg("Done.");
+
+      // 4) Trigger gallery refresh in parent
+      onUploaded?.();
     } catch (e: any) {
       setMsg(e?.message || "Upload failed");
-      throw e; // keep so you can see it in console if needed
+      throw e;
     }
   }
 
