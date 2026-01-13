@@ -77,15 +77,24 @@ export async function apiDeleteRaw(path: string): Promise<void> {
 }
 
 export async function apiGetBlob(path: string): Promise<Blob> {
+  // Reuse auth headers, but DO NOT send Content-Type on a GET download
+  const headers = buildHeaders({
+    Accept: "application/zip, application/octet-stream",
+  });
+  delete (headers as any)["Content-Type"];
+
   const res = await fetch(apiUrl(path), {
     method: "GET",
-    headers: buildHeaders({
-      // do NOT force application/json; allow binary
-      Accept: "*/*",
-    }),
+    headers,
+    cache: "no-store",
   });
 
-  if (!res.ok) throw new Error(await parseError(res));
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Download failed (${res.status}): ${text.slice(0, 300) || "No body"}`
+    );
+  }
 
   return await res.blob();
 }
