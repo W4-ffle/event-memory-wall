@@ -283,8 +283,6 @@ export default function EventsPage() {
           const isDeleting = deletingEventId === ev.eventId;
 
           const membersClean = uniqueStrings(ev.memberIds ?? []);
-          const memberLabel =
-            membersClean.slice(0, 6).join(", ") || "(none set)";
 
           const canManage = canManageMembers(ev);
 
