@@ -135,7 +135,9 @@ export default async function (
 
   const out = new PassThrough();
 
-  // Important: mark as raw stream so Functions host doesn't JSON-wrap it.
+  // IMPORTANT:
+  // Do NOT await stream completion in Azure Functions.
+  // The host typically starts flushing the response after the function returns.
   (context as any).res = {
     status: 200,
     headers: {
@@ -143,6 +145,8 @@ export default async function (
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${zipFileName}"`,
       "Cache-Control": "no-store",
+      // Optional but useful if you ever read filename client-side
+      "Access-Control-Expose-Headers": "Content-Disposition",
     },
     body: out,
     isRaw: true,
@@ -150,7 +154,10 @@ export default async function (
 
   const archive = archiver("zip", { zlib: { level: 9 } });
 
-  // If archiver throws, terminate the stream so the client doesn’t hang.
+  archive.on("warning", (err: any) => {
+    context.log("ZIP warning:", err?.message || err);
+  });
+
   archive.on("error", (err: any) => {
     context.log("ZIP error:", err?.message || err);
     try {
@@ -158,15 +165,24 @@ export default async function (
     } catch {}
   });
 
-  // Non-fatal warnings
-  archive.on("warning", (err: any) => {
-    context.log("ZIP warning:", err?.message || err);
+  out.on("error", (err: any) => {
+    context.log("Response stream error:", err?.message || err);
+    try {
+      archive.abort();
+    } catch {}
   });
 
-  // Pipe archive into HTTP response stream
+  // Pipe archive into the HTTP response stream
   archive.pipe(out);
 
   const usedNames = new Set<string>();
+
+  // If there are no items, add a tiny README so Windows sees a valid non-empty zip reliably
+  if (!items.length) {
+    archive.append("No media in this event.\n", { name: "README.txt" });
+    archive.finalize(); // DO NOT await
+    return; // allow host to stream
+  }
 
   // Append each blob stream
   for (const it of items) {
@@ -190,25 +206,13 @@ export default async function (
 
       archive.append(readable as any, { name: entryName });
     } catch (e: any) {
-      // Best-effort: skip broken blobs instead of hanging
+      // Best-effort: skip broken blobs
       context.log("Failed to add blob:", it.mediaId, e?.message);
       continue;
     }
   }
 
   // Finalize signals “no more entries”
-  archive.finalize();
-
-  // CRITICAL: wait until the response stream actually finishes,
-  // otherwise the platform may keep the request “pending”.
-  await new Promise<void>((resolve, reject) => {
-    const done = () => resolve();
-
-    out.on("finish", done);
-    out.on("close", done);
-    out.on("end", done);
-
-    out.on("error", reject);
-    archive.on("error", reject);
-  });
+  archive.finalize(); // DO NOT await
+  // Return immediately so the Functions host can flush the stream.
 }
