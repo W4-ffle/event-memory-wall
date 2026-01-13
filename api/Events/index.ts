@@ -1,6 +1,7 @@
 import { HttpRequest, InvocationContext } from "@azure/functions";
 import { randomUUID } from "crypto";
-import { getEventsContainer } from "../src/shared/cosmos";
+import { getEventsContainer, getMediaContainer } from "../src/shared/cosmos";
+import { deleteBlobIfPossible } from "../src/shared/blob";
 import {
   json,
   badRequest,
@@ -9,7 +10,6 @@ import {
 } from "../src/shared/http";
 
 function getHeader(req: HttpRequest, name: string): string | undefined {
-  // Runtime headers behave like a plain object in your deployment.
   const headers = req.headers as unknown as Record<string, any>;
   return (
     headers[name] || headers[name.toLowerCase()] || headers[name.toUpperCase()]
@@ -17,7 +17,6 @@ function getHeader(req: HttpRequest, name: string): string | undefined {
 }
 
 function readJsonBody(req: HttpRequest): any {
-  // Classic model: req.body is usually object or string
   const raw = (req as any).body;
   if (!raw) return null;
   if (typeof raw === "string") {
@@ -38,14 +37,15 @@ export default async function (
 
   try {
     const hostId = getHeader(req, "x-host-id") || "demo-host";
-    const container = await getEventsContainer();
-
-    // bindingData exists at runtime, but types may not include it
     const eventId = (context as any)?.bindingData?.eventId as
       | string
       | undefined;
 
-    // ---------------- GET: list events (excluding deleted) ----------------
+    const events = await getEventsContainer();
+
+    // -------------------------
+    // GET /v1/events
+    // -------------------------
     if (req.method === "GET") {
       const querySpec = {
         query: `
@@ -57,12 +57,14 @@ export default async function (
         parameters: [{ name: "@hostId", value: hostId }],
       };
 
-      const { resources } = await container.items.query(querySpec).fetchAll();
+      const { resources } = await events.items.query(querySpec).fetchAll();
       json(context, 200, resources ?? []);
       return;
     }
 
-    // ---------------- POST: create event ----------------
+    // -------------------------
+    // POST /v1/events
+    // -------------------------
     if (req.method === "POST") {
       const body = readJsonBody(req);
       if (!body) {
@@ -87,104 +89,160 @@ export default async function (
         startsAt: body.startsAt || null,
         endsAt: body.endsAt || null,
         visibility: body.visibility || "PRIVATE",
+        status: "ACTIVE",
         createdAt: now,
-        // keep status undefined by default so your GET filter includes it
       };
 
-      await container.items.create(doc);
+      await events.items.create(doc);
       json(context, 201, doc);
       return;
     }
 
-    // ---------------- PUT: update event ----------------
-    // Route: /v1/events/{eventId}
-    if (req.method === "PUT") {
-      if (!eventId) {
-        badRequest(context, "eventId is required");
-        return;
-      }
+    // Everything below requires an eventId
+    if (!eventId) {
+      badRequest(context, "eventId is required");
+      return;
+    }
 
+    // -------------------------
+    // PATCH /v1/events/{eventId}
+    // -------------------------
+    if (req.method === "PATCH") {
       const body = readJsonBody(req);
       if (!body) {
         badRequest(context, "Invalid or missing JSON body");
         return;
       }
 
-      // Read existing doc (partition key assumed to be hostId, matching your design)
-      const { resource } = await container.item(eventId, hostId).read<any>();
+      // Load existing
+      const existingQuery = {
+        query:
+          "SELECT TOP 1 * FROM c WHERE c.hostId = @hostId AND c.eventId = @eventId",
+        parameters: [
+          { name: "@hostId", value: hostId },
+          { name: "@eventId", value: eventId },
+        ],
+      };
 
-      if (!resource) {
+      const { resources: found } = await events.items
+        .query(existingQuery)
+        .fetchAll();
+
+      const current = found?.[0];
+      if (!current) {
         json(context, 404, { error: "Not found" });
         return;
       }
 
-      // If already deleted, treat as not found (cleaner UX)
-      if (resource.status === "DELETED") {
+      if (current.status === "DELETED") {
         json(context, 404, { error: "Not found" });
         return;
       }
 
-      // Apply partial updates (only overwrite provided fields)
+      // Only allow updating specific fields
       const updated = {
-        ...resource,
+        ...current,
         title:
           typeof body.title === "string" && body.title.trim()
             ? body.title.trim()
-            : resource.title,
+            : current.title,
         description:
           typeof body.description === "string"
             ? body.description
-            : resource.description,
-        startsAt:
-          body.startsAt === null || typeof body.startsAt === "string"
-            ? body.startsAt
-            : resource.startsAt,
-        endsAt:
-          body.endsAt === null || typeof body.endsAt === "string"
-            ? body.endsAt
-            : resource.endsAt,
+            : current.description,
+        startsAt: body.startsAt ?? current.startsAt,
+        endsAt: body.endsAt ?? current.endsAt,
         visibility:
           typeof body.visibility === "string"
             ? body.visibility
-            : resource.visibility,
+            : current.visibility,
         updatedAt: new Date().toISOString(),
       };
 
-      await container.item(eventId, hostId).replace(updated);
+      await events.items.upsert(updated);
       json(context, 200, updated);
       return;
     }
 
-    // ---------------- DELETE: soft delete event ----------------
-    // Route: /v1/events/{eventId}
+    // -------------------------
+    // DELETE /v1/events/{eventId}
+    // Soft delete event + media + best-effort blob delete
+    // -------------------------
     if (req.method === "DELETE") {
-      if (!eventId) {
-        badRequest(context, "eventId is required");
-        return;
-      }
+      const media = await getMediaContainer();
 
-      const { resource } = await container.item(eventId, hostId).read<any>();
+      // Find event
+      const eventQuery = {
+        query:
+          "SELECT TOP 1 * FROM c WHERE c.hostId = @hostId AND c.eventId = @eventId",
+        parameters: [
+          { name: "@hostId", value: hostId },
+          { name: "@eventId", value: eventId },
+        ],
+      };
 
-      if (!resource) {
+      const { resources: eventDocs } = await events.items
+        .query(eventQuery)
+        .fetchAll();
+
+      const ev = eventDocs?.[0];
+      if (!ev) {
         json(context, 404, { error: "Not found" });
         return;
       }
 
-      if (resource.status === "DELETED") {
-        // idempotent delete
-        json(context, 204, null);
-        return;
-      }
+      const now = new Date().toISOString();
 
-      const deletedDoc = {
-        ...resource,
+      // Soft-delete event
+      await events.items.upsert({
+        ...ev,
         status: "DELETED",
-        deletedAt: new Date().toISOString(),
+        deletedAt: now,
+      });
+
+      // Soft-delete media docs (and try to delete blobs)
+      const mediaQuery = {
+        query: `
+          SELECT * FROM c
+          WHERE c.hostId = @hostId
+            AND c.eventId = @eventId
+            AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')
+          ORDER BY c.createdAt DESC
+        `,
+        parameters: [
+          { name: "@hostId", value: hostId },
+          { name: "@eventId", value: eventId },
+        ],
       };
 
-      await container.item(eventId, hostId).replace(deletedDoc);
+      const { resources: mediaDocs } = await media.items
+        .query(mediaQuery)
+        .fetchAll();
 
-      json(context, 204, null);
+      let deletedMediaCount = 0;
+      let blobDeleteFailures = 0;
+
+      for (const m of mediaDocs ?? []) {
+        await media.items.upsert({
+          ...m,
+          status: "DELETED",
+          deletedAt: now,
+        });
+        deletedMediaCount++;
+
+        try {
+          if (m.blobUrl) await deleteBlobIfPossible(m.blobUrl);
+        } catch {
+          blobDeleteFailures++;
+        }
+      }
+
+      json(context, 200, {
+        ok: true,
+        eventId,
+        deletedMediaCount,
+        blobDeleteFailures,
+      });
       return;
     }
 
