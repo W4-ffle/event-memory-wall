@@ -53,7 +53,13 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
         </div>
 
         {/* Content */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginTop: 40,
+          }}
+        >
           <div
             style={{
               width: "min(520px, 100%)",
@@ -61,7 +67,7 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
               borderRadius: 14,
               background: "#fff",
               boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-              padding: 16,
+              padding: 20,
             }}
           >
             <div style={{ fontSize: 18, fontWeight: 800 }}>Welcome</div>
