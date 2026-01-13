@@ -1,18 +1,14 @@
-import type { InvocationContext, HttpRequest } from "@azure/functions";
+import type { HttpRequest, InvocationContext } from "@azure/functions";
 import archiver from "archiver";
 import { PassThrough } from "stream";
+
+import { corsHeaders, handleOptions } from "../src/shared/http";
 import { getAuth, requireLogin, getHeader } from "../src/shared/auth";
 import { loadEventByHostAndId, isMember } from "../src/shared/eventAccess";
 import { getMediaContainer } from "../src/shared/cosmos";
 import { blobClientFromBlobUrl } from "../src/shared/blob";
-import {
-  corsHeaders,
-  handleOptions,
-  json,
-  methodNotAllowed,
-  serverError,
-} from "../src/shared/http";
 
+// ---- helpers ----
 function safeFileName(name: string): string {
   const base = String(name || "file")
     .replace(/[\/\\?%*:|"<>]/g, "_")
@@ -53,40 +49,58 @@ export default async function (
   req: HttpRequest
 ): Promise<void> {
   try {
+    // CORS preflight
     if (handleOptions(context, req)) return;
 
     if (req.method !== "GET") {
-      methodNotAllowed(context);
+      (context as any).res = {
+        status: 405,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Method not allowed" },
+      };
       return;
     }
 
     const hostId = getHeader(req as any, "x-host-id") || "demo-host";
-    const eventId = (context as any)?.bindingData?.eventId as string;
+    const eventId = String((context as any)?.bindingData?.eventId || "").trim();
 
     if (!eventId) {
-      json(context, 400, {
-        error: "Bad Request",
-        message: "eventId is required",
-      });
+      (context as any).res = {
+        status: 400,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Bad Request", message: "eventId is required" },
+      };
       return;
     }
 
     // ---- Auth ----
-    const { userId, isAdmin } = getAuth(req);
+    const { userId, isAdmin } = getAuth(req as any);
     if (!requireLogin(userId)) {
-      json(context, 401, { error: "Login required" });
+      (context as any).res = {
+        status: 401,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Login required" },
+      };
       return;
     }
 
     // ---- Membership enforcement ----
     const ev = await loadEventByHostAndId(hostId, eventId);
     if (!ev || ev.status === "DELETED") {
-      json(context, 404, { error: "Not found" });
+      (context as any).res = {
+        status: 404,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Not found" },
+      };
       return;
     }
 
     if (!isAdmin && !isMember(ev, userId)) {
-      json(context, 403, { error: "Forbidden" });
+      (context as any).res = {
+        status: 403,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Forbidden" },
+      };
       return;
     }
 
@@ -116,20 +130,24 @@ export default async function (
       createdAt?: string;
     }> = resources ?? [];
 
+    // ---- Prepare streaming ZIP response ----
     const zipNameBase = safeFileName(ev.title || "event");
     const zipFileName = `${zipNameBase}.zip`;
 
-    // Streaming ZIP
     const out = new PassThrough();
 
+    // IMPORTANT: streaming/binary response for Node Functions
     (context as any).res = {
       status: 200,
       headers: {
         ...corsHeaders(),
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${zipFileName}"`,
+        // Helps some proxies not buffer everything before sending
+        "Cache-Control": "no-store",
       },
       body: out,
+      isRaw: true,
     };
 
     const archive = archiver("zip", { zlib: { level: 9 } });
@@ -176,8 +194,27 @@ export default async function (
       }
     }
 
-    await archive.finalize();
+    // Finalize + wait until stream finishes to avoid truncation
+    archive.finalize();
+
+    await new Promise<void>((resolve, reject) => {
+      const done = () => resolve();
+      out.on("finish", done);
+      out.on("close", done);
+      out.on("error", reject);
+      archive.on("error", reject);
+    });
   } catch (err: any) {
-    serverError(context, err);
+    context.log("EventDownload error:", err?.message);
+    context.log(err?.stack);
+
+    (context as any).res = {
+      status: 500,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      body: {
+        error: "Internal Server Error",
+        message: err?.message ?? "Unknown error",
+      },
+    };
   }
 }

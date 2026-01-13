@@ -6,12 +6,14 @@
       "direction": "in",
       "name": "req",
       "methods": ["get", "options"],
-      "route": "events/{eventId}/download"
+      "route": "v1/events/{eventId}/download"
     },
     {
       "type": "http",
       "direction": "out",
       "name": "res"
     }
-  ]
+  ],
+  "scriptFile": "../dist/EventDownload/index.js",
+  "entryPoint": "default"
 }

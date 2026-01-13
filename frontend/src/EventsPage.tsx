@@ -244,7 +244,7 @@ export default function EventsPage() {
     setDownloadingEventId(ev.eventId);
 
     try {
-      const blob = await apiGetBlob(`/events/${ev.eventId}/download`);
+      const blob = await apiGetBlob(`/v1/events/${ev.eventId}/download`);
       const fileName = `${safeFileName(ev.title)}.zip`;
 
       const url = URL.createObjectURL(blob);
