@@ -11,23 +11,32 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     // route param: v1/events/{eventId}/media/sas
     const eventId = context?.bindingData?.eventId as string;
     if (!eventId) {
-      context.res = { status: 400, body: { error: "eventId is required" } };
+      context.res = {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "eventId is required" },
+      };
       return;
     }
 
-    // body comes from req.body in your classic model
+    // classic model: body from req.body
     let body: any;
     try {
       body = (req as any).body;
       if (typeof body === "string") body = JSON.parse(body);
     } catch {
-      context.res = { status: 400, body: { error: "Invalid JSON body" } };
+      context.res = {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "Invalid JSON body" },
+      };
       return;
     }
 
     if (!body?.fileName || !body?.contentType) {
       context.res = {
         status: 400,
+        headers: { "Content-Type": "application/json" },
         body: { error: "fileName and contentType are required" },
       };
       return;
@@ -39,20 +48,19 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     const safeName = String(body.fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
     const blobName = `${hostId}/${eventId}/${Date.now()}_${safeName}`;
 
-    // Returns uploadUrl + blobUrl + expiresOn
+    // makeUploadSas returns: { url, blobUrl, expiresOn }
     const sas = makeUploadSas(blobName);
 
     context.res = {
       status: 200,
       headers: { "Content-Type": "application/json" },
       body: {
-        // explicit keys the frontend can rely on
-        uploadUrl: sas.uploadUrl,
+        // Frontend expects uploadUrl
+        uploadUrl: sas.url,
         blobUrl: sas.blobUrl,
-        blobName: sas.blobName,
+        blobName,
         expiresOn: sas.expiresOn,
 
-        // useful metadata
         contentType: body.contentType,
         eventId,
         hostId,
