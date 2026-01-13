@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "./api";
 import UploadMedia from "./UploadMedia";
+import MediaGallery from "./MediaGallery";
 
 type EventDoc = {
   id: string;
@@ -66,13 +67,21 @@ export default function EventsPage() {
       )}
 
       <h2>Events</h2>
-      <ul>
-        {events.map((ev) => (
-          <li key={ev.id}>
-            <strong>{ev.title}</strong> <span>({ev.eventId})</span>
-          </li>
-        ))}
-      </ul>
+      {events.map((ev) => (
+        <div
+          key={ev.id}
+          style={{
+            marginBottom: 24,
+            paddingBottom: 16,
+            borderBottom: "1px solid #ddd",
+          }}
+        >
+          <strong>{ev.title}</strong>
+          <div style={{ fontSize: 12, color: "#666" }}>{ev.eventId}</div>
+
+          <MediaGallery eventId={ev.eventId} />
+        </div>
+      ))}
       {events[0] && (
         <div
           style={{ marginTop: 24, paddingTop: 12, borderTop: "1px solid #ddd" }}
