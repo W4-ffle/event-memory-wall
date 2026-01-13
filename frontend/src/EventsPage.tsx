@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiGet, apiPost, apiDeleteRaw } from "./api";
+import { apiGet, apiPost, apiDeleteRaw, apiPatch } from "./api";
 import UploadMedia from "./UploadMedia";
 import MediaGallery from "./MediaGallery";
 
@@ -17,8 +17,12 @@ export default function EventsPage() {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // per-event refresh counter (bump after uploads/deletes)
+  // media refresh per event
   const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
+
+  // edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
 
   function bumpRefresh(eventId: string) {
     setMediaRefresh((prev) => ({
@@ -37,26 +41,40 @@ export default function EventsPage() {
     }
   }
 
-  async function deleteEvent(eventId: string, title: string) {
-    const ok = window.confirm(
-      `Are you sure you want to delete the event "${title}"?\n\nThis will also remove all associated media.`
-    );
-    if (!ok) return;
-
+  async function create() {
     setError(null);
     try {
-      await apiDeleteRaw(`/events/${eventId}`);
-      await load(); // refresh events list
+      await apiPost("/events", { title });
+      setTitle("");
+      await load();
     } catch (e: any) {
       setError(e.message);
     }
   }
 
-  async function create() {
+  async function deleteEvent(eventId: string) {
     setError(null);
     try {
-      await apiPost<EventDoc>("/events", { title });
-      setTitle("");
+      await apiDeleteRaw(`/events/${eventId}`);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function saveEdit(eventId: string) {
+    if (!editTitle.trim()) {
+      setError("Title cannot be empty");
+      return;
+    }
+
+    try {
+      await apiPatch(`/events/${eventId}`, {
+        title: editTitle.trim(),
+      });
+
+      setEditingId(null);
+      setEditTitle("");
       await load();
     } catch (e: any) {
       setError(e.message);
@@ -94,60 +112,91 @@ export default function EventsPage() {
       <h2>Events</h2>
 
       <div style={{ display: "grid", gap: 18 }}>
-        {events.map((ev) => (
-          <div
-            key={ev.id}
-            style={{
-              padding: 14,
-              border: "1px solid #eee",
-              borderRadius: 10,
-              background: "#fff",
-            }}
-          >
+        {events.map((ev) => {
+          const isEditing = editingId === ev.eventId;
+
+          return (
             <div
+              key={ev.id}
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 10,
-                alignItems: "flex-start",
+                padding: 14,
+                border: "1px solid #eee",
+                borderRadius: 10,
+                background: "#fff",
               }}
             >
-              <div>
-                <div style={{ fontWeight: 700 }}>{ev.title}</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>{ev.eventId}</div>
-              </div>
-
-              <button
-                onClick={() => deleteEvent(ev.eventId, ev.title)}
+              <div
                 style={{
-                  padding: "8px 10px",
-                  borderRadius: 6,
-                  border: "1px solid #ddd",
-                  background: "#fff",
-                  cursor: "pointer",
-                  height: 34,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 10,
                 }}
               >
-                Delete Event
-              </button>
-            </div>
+                <div style={{ flex: 1 }}>
+                  {!isEditing ? (
+                    <>
+                      <div style={{ fontWeight: 700 }}>{ev.title}</div>
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        {ev.eventId}
+                      </div>
+                    </>
+                  ) : (
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      style={{ width: "100%", padding: 8 }}
+                    />
+                  )}
+                </div>
 
-            <div style={{ marginTop: 12 }}>
-              <UploadMedia
-                eventId={ev.eventId}
-                onUploaded={() => bumpRefresh(ev.eventId)}
-              />
-            </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {!isEditing ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingId(ev.eventId);
+                          setEditTitle(ev.title);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button onClick={() => deleteEvent(ev.eventId)}>
+                        Delete Event
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => saveEdit(ev.eventId)}>Save</button>
+                      <button
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditTitle("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
 
-            <div style={{ marginTop: 12 }}>
-              <MediaGallery
-                eventId={ev.eventId}
-                refreshKey={mediaRefresh[ev.eventId] ?? 0}
-                onDeleted={() => bumpRefresh(ev.eventId)}
-              />
+              <div style={{ marginTop: 12 }}>
+                <UploadMedia
+                  eventId={ev.eventId}
+                  onUploaded={() => bumpRefresh(ev.eventId)}
+                />
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <MediaGallery
+                  eventId={ev.eventId}
+                  refreshKey={mediaRefresh[ev.eventId] ?? 0}
+                  onDeleted={() => bumpRefresh(ev.eventId)}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
