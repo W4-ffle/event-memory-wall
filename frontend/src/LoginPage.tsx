@@ -148,10 +148,6 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
                   Continue
                 </button>
               </div>
-
-              <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>
-                Your username is stored locally in your browser for this demo.
-              </div>
             </div>
           </div>
         </div>
