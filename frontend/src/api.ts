@@ -1,9 +1,10 @@
+// frontend/src/api.ts
 const BASE = import.meta.env.VITE_API_BASE_URL;
 
 type Session = {
   userId: string;
   isAdmin: boolean;
-  adminPasscode?: string; // only stored if entered
+  adminPasscode?: string;
 };
 
 function getSession(): Session | null {
@@ -18,21 +19,41 @@ function getSession(): Session | null {
 
 function authHeaders(): Record<string, string> {
   const s = getSession();
-  if (!s?.userId) return {}; // allow anonymous until you enforce it server-side
+
+  // Always include host id (your backend relies on it)
   const h: Record<string, string> = {
-    "x-user-id": s.userId,
-    "x-admin": String(!!s.isAdmin),
+    "x-host-id": "demo-host",
   };
+
+  if (!s?.userId) return h;
+
+  h["x-user-id"] = s.userId;
   if (s.adminPasscode) h["x-admin-passcode"] = s.adminPasscode;
+
   return h;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { ...authHeaders() },
-  });
+async function readError(res: Response): Promise<string> {
+  const ct = res.headers.get("content-type") || "";
+  const text = await res.text().catch(() => "");
+  if (ct.includes("application/json")) {
+    try {
+      const j = JSON.parse(text);
+      const msg = j?.message || j?.error || text;
+      return typeof msg === "string" ? msg : text;
+    } catch {
+      return text;
+    }
+  }
+  return text;
+}
 
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { headers: { ...authHeaders() } });
+  if (!res.ok) {
+    const detail = await readError(res);
+    throw new Error(`GET ${path} failed: ${res.status} ${detail}`.trim());
+  }
   return res.json();
 }
 
@@ -46,7 +67,10 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await readError(res);
+    throw new Error(`POST ${path} failed: ${res.status} ${detail}`.trim());
+  }
   return res.json();
 }
 
@@ -60,7 +84,10 @@ export async function apiPostRaw(path: string, body: any): Promise<any> {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await readError(res);
+    throw new Error(`POST ${path} failed: ${res.status} ${detail}`.trim());
+  }
   return res.json();
 }
 
@@ -75,8 +102,8 @@ export async function apiPatch<T>(path: string, body: any): Promise<T> {
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`PATCH ${path} failed: ${res.status} ${text}`);
+    const detail = await readError(res);
+    throw new Error(`PATCH ${path} failed: ${res.status} ${detail}`.trim());
   }
 
   const ct = res.headers.get("content-type") || "";
@@ -91,8 +118,8 @@ export async function apiDeleteRaw(path: string) {
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`DELETE ${path} failed: ${res.status} ${text}`);
+    const detail = await readError(res);
+    throw new Error(`DELETE ${path} failed: ${res.status} ${detail}`.trim());
   }
 
   const ct = res.headers.get("content-type") || "";

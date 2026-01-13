@@ -1,47 +1,22 @@
-import { HttpRequest } from "@azure/functions";
+// api/Events/index.ts
+import { HttpRequest, InvocationContext } from "@azure/functions";
 import { randomUUID } from "crypto";
 import { getEventsContainer } from "../src/shared/cosmos";
-import { getAuth, requireLogin } from "../src/shared/auth";
+import {
+  getAuth,
+  requireAdmin,
+  requireLogin,
+  getHeader,
+} from "../src/shared/auth";
+import {
+  json,
+  badRequest,
+  methodNotAllowed,
+  serverError,
+} from "../src/shared/http";
 
-// ---- CORS (must allow x-admin-passcode / x-user-id) ----
-const ALLOWED_ORIGIN = "https://stgemwjb.z33.web.core.windows.net";
-const ALLOWED_HEADERS = "Content-Type, x-host-id, x-user-id, x-admin-passcode";
-const ALLOWED_METHODS = "GET,POST,PATCH,DELETE,OPTIONS";
-
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-    "Access-Control-Allow-Headers": ALLOWED_HEADERS,
-    "Access-Control-Allow-Methods": ALLOWED_METHODS,
-  };
-}
-
-function handleOptions(context: any, req: HttpRequest): boolean {
-  if (req.method !== "OPTIONS") return false;
-
-  context.res = {
-    status: 204,
-    headers: { ...corsHeaders() },
-    body: "",
-  };
-  return true;
-}
-
-function send(context: any, status: number, body: any) {
-  context.res = {
-    status,
-    headers: { ...corsHeaders(), "Content-Type": "application/json" },
-    body,
-  };
-}
-
-function getHeader(req: any, name: string): string | undefined {
-  const h = (req?.headers ?? {}) as Record<string, any>;
-  return h[name] || h[name.toLowerCase()] || h[name.toUpperCase()];
-}
-
-function readJsonBody(req: any): any | null {
-  const raw = req?.body;
+function readJsonBody(req: HttpRequest): any {
+  const raw = (req as any).body;
   if (!raw) return null;
   if (typeof raw === "string") {
     try {
@@ -53,18 +28,20 @@ function readJsonBody(req: any): any | null {
   return raw;
 }
 
-export default async function (context: any, req: HttpRequest): Promise<void> {
+export default async function (
+  context: InvocationContext,
+  req: HttpRequest
+): Promise<void> {
+  context.log("Events handler reached - stable");
+
   try {
-    // ✅ browser preflight must be handled before anything else
-    if (handleOptions(context, req)) return;
+    // host header (keep your existing pattern)
+    const hostId = getHeader(req as any, "x-host-id") || "demo-host";
 
-    const hostId = getHeader(req, "x-host-id") || "demo-host";
+    // auth
     const { userId, isAdmin } = getAuth(req);
-
-    // For your requirement: users should only see events associated with them,
-    // so login is required to list events.
     if (!requireLogin(userId)) {
-      send(context, 401, { error: "Login required" });
+      json(context, 401, { error: "Login required" });
       return;
     }
 
@@ -72,8 +49,8 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
 
     // -------------------------
     // GET /v1/events
-    // Admin: all events
-    // User: only where memberIds contains userId
+    // Admin: all events for host
+    // User: only events where memberIds contains userId
     // -------------------------
     if (req.method === "GET") {
       const querySpec = isAdmin
@@ -91,6 +68,7 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
               SELECT * FROM c
               WHERE c.hostId = @hostId
                 AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')
+                AND IS_DEFINED(c.memberIds)
                 AND ARRAY_CONTAINS(c.memberIds, @userId)
               ORDER BY c.createdAt DESC
             `,
@@ -101,43 +79,37 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
           };
 
       const { resources } = await events.items.query(querySpec).fetchAll();
-      send(context, 200, resources ?? []);
+      json(context, 200, resources ?? []);
       return;
     }
 
     // -------------------------
-    // POST /v1/events
-    // Admin-only creation is typical; if you want normal users creating events,
-    // remove the admin check. For now: admin only.
+    // POST /v1/events (ADMIN ONLY)
+    // Creates event, and makes admin the first member (so it appears in member filter too)
     // -------------------------
     if (req.method === "POST") {
-      if (!isAdmin) {
-        send(context, 403, { error: "Admin only" });
+      if (!requireAdmin(isAdmin)) {
+        json(context, 403, { error: "Admin only" });
         return;
       }
 
       const body = readJsonBody(req);
       if (!body) {
-        send(context, 400, { error: "Invalid or missing JSON body" });
+        badRequest(context, "Invalid or missing JSON body");
         return;
       }
 
       if (!body.title || typeof body.title !== "string" || !body.title.trim()) {
-        send(context, 400, { error: "title is required" });
+        badRequest(context, "title is required");
         return;
       }
 
       const now = new Date().toISOString();
-      const eventId = `event_${randomUUID()}`;
-
-      // If you want the creating admin to automatically be a member:
-      const memberIds = Array.isArray(body.memberIds)
-        ? body.memberIds
-        : [userId].filter(Boolean);
+      const newEventId = `event_${randomUUID()}`;
 
       const doc = {
-        id: eventId,
-        eventId,
+        id: newEventId,
+        eventId: newEventId,
         hostId,
         title: body.title.trim(),
         description: body.description || "",
@@ -145,23 +117,24 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
         endsAt: body.endsAt || null,
         visibility: body.visibility || "PRIVATE",
         status: "ACTIVE",
-        memberIds, // ✅ used for user filtering
         createdAt: now,
+
+        // ownership/membership
+        ownerId: userId,
+        memberIds: Array.isArray(body.memberIds)
+          ? Array.from(new Set([userId, ...body.memberIds.map(String)]))
+          : [userId],
       };
 
       await events.items.create(doc);
-      send(context, 201, doc);
+      json(context, 201, doc);
       return;
     }
 
-    send(context, 405, { error: "Method not allowed" });
+    methodNotAllowed(context);
   } catch (err: any) {
     context.log("Events error:", err?.message);
     context.log(err?.stack);
-
-    send(context, 500, {
-      error: "Internal server error",
-      message: err?.message ?? "Unknown error",
-    });
+    serverError(context, err);
   }
 }

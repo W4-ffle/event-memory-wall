@@ -1,23 +1,34 @@
+// api/src/shared/auth.ts
 import type { HttpRequest } from "@azure/functions";
 
-// NOTE: CORS handling is done per-function (recommended).
-// This file only provides auth helpers.
+/**
+ * Robust header getter: works whether headers is a plain object
+ * OR a Fetch Headers-like instance with .get().
+ */
+export function getHeader(req: any, name: string): string {
+  const headers: any = req?.headers;
 
-function getHeader(req: HttpRequest, name: string): string | undefined {
-  const headers = req.headers as unknown as Record<string, any>;
-  return (
-    headers[name] || headers[name.toLowerCase()] || headers[name.toUpperCase()]
-  );
+  if (!headers) return "";
+
+  // Case 1: Headers-like
+  if (typeof headers.get === "function") {
+    return String(headers.get(name) || "").trim();
+  }
+
+  // Case 2: plain object
+  const h = headers as Record<string, any>;
+  return String(
+    h[name] || h[name.toLowerCase()] || h[name.toUpperCase()] || ""
+  ).trim();
 }
 
 export function getAuth(req: HttpRequest) {
-  const userId = (getHeader(req, "x-user-id") || "").trim();
-  const adminPasscode = (getHeader(req, "x-admin-passcode") || "").trim();
+  const userId = getHeader(req, "x-user-id");
+  const adminPasscode = getHeader(req, "x-admin-passcode");
 
-  const expected = (process.env.ADMIN_PASSCODE || "").trim();
+  const envPass = String(process.env.ADMIN_PASSCODE || "").trim();
 
-  // Admin = correct passcode matches env var
-  const isAdmin = !!adminPasscode && !!expected && adminPasscode === expected;
+  const isAdmin = !!adminPasscode && !!envPass && adminPasscode === envPass;
 
   return { userId, isAdmin };
 }
