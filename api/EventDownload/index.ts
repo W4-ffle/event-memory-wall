@@ -48,173 +48,167 @@ export default async function (
   context: InvocationContext,
   req: HttpRequest
 ): Promise<void> {
-  try {
-    // CORS preflight
-    if (handleOptions(context, req)) return;
+  // CORS preflight
+  if (handleOptions(context, req)) return;
 
-    if (req.method !== "GET") {
-      (context as any).res = {
-        status: 405,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Method not allowed" },
-      };
-      return;
-    }
-
-    const hostId = getHeader(req as any, "x-host-id") || "demo-host";
-    const eventId = String((context as any)?.bindingData?.eventId || "").trim();
-
-    if (!eventId) {
-      (context as any).res = {
-        status: 400,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Bad Request", message: "eventId is required" },
-      };
-      return;
-    }
-
-    // ---- Auth ----
-    const { userId, isAdmin } = getAuth(req as any);
-    if (!requireLogin(userId)) {
-      (context as any).res = {
-        status: 401,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Login required" },
-      };
-      return;
-    }
-
-    // ---- Membership enforcement ----
-    const ev = await loadEventByHostAndId(hostId, eventId);
-    if (!ev || ev.status === "DELETED") {
-      (context as any).res = {
-        status: 404,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Not found" },
-      };
-      return;
-    }
-
-    if (!isAdmin && !isMember(ev, userId)) {
-      (context as any).res = {
-        status: 403,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Forbidden" },
-      };
-      return;
-    }
-
-    // ---- Load media list (exclude DELETED) ----
-    const media = await getMediaContainer();
-    const querySpec = {
-      query: `
-        SELECT c.mediaId, c.blobUrl, c.fileName, c.contentType, c.createdAt
-        FROM c
-        WHERE c.hostId = @hostId
-          AND c.eventId = @eventId
-          AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')
-        ORDER BY c.createdAt DESC
-      `,
-      parameters: [
-        { name: "@hostId", value: hostId },
-        { name: "@eventId", value: eventId },
-      ],
-    };
-
-    const { resources } = await media.items.query(querySpec).fetchAll();
-    const items: Array<{
-      mediaId: string;
-      blobUrl: string;
-      fileName?: string;
-      contentType?: string;
-      createdAt?: string;
-    }> = resources ?? [];
-
-    // ---- Prepare streaming ZIP response ----
-    const zipNameBase = safeFileName(ev.title || "event");
-    const zipFileName = `${zipNameBase}.zip`;
-
-    const out = new PassThrough();
-
-    // IMPORTANT: streaming/binary response for Node Functions
+  if (req.method !== "GET") {
     (context as any).res = {
-      status: 200,
-      headers: {
-        ...corsHeaders(),
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${zipFileName}"`,
-        // Helps some proxies not buffer everything before sending
-        "Cache-Control": "no-store",
-      },
-      body: out,
-      isRaw: true,
+      status: 405,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      body: { error: "Method not allowed" },
     };
+    return;
+  }
 
-    const archive = archiver("zip", { zlib: { level: 9 } });
+  const hostId = getHeader(req as any, "x-host-id") || "demo-host";
+  const eventId = String((context as any)?.bindingData?.eventId || "").trim();
 
-    archive.on("warning", (err: any) => {
-      context.log("ZIP warning:", err?.message || err);
-    });
+  if (!eventId) {
+    (context as any).res = {
+      status: 400,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      body: { error: "Bad Request", message: "eventId is required" },
+    };
+    return;
+  }
 
-    archive.on("error", (err: any) => {
-      context.log("ZIP error:", err?.message || err);
-      try {
-        out.destroy(err);
-      } catch {}
-    });
+  // ---- Auth ----
+  const { userId, isAdmin } = getAuth(req as any);
+  if (!requireLogin(userId)) {
+    (context as any).res = {
+      status: 401,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      body: { error: "Login required" },
+    };
+    return;
+  }
 
-    archive.pipe(out);
+  // ---- Membership enforcement ----
+  const ev = await loadEventByHostAndId(hostId, eventId);
+  if (!ev || ev.status === "DELETED") {
+    (context as any).res = {
+      status: 404,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      body: { error: "Not found" },
+    };
+    return;
+  }
 
-    const usedNames = new Set<string>();
+  if (!isAdmin && !isMember(ev, userId)) {
+    (context as any).res = {
+      status: 403,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      body: { error: "Forbidden" },
+    };
+    return;
+  }
 
-    for (const it of items) {
-      if (!it?.blobUrl) continue;
+  // ---- Load media list (exclude DELETED) ----
+  const media = await getMediaContainer();
+  const querySpec = {
+    query: `
+      SELECT c.mediaId, c.blobUrl, c.fileName, c.contentType, c.createdAt
+      FROM c
+      WHERE c.hostId = @hostId
+        AND c.eventId = @eventId
+        AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')
+      ORDER BY c.createdAt DESC
+    `,
+    parameters: [
+      { name: "@hostId", value: hostId },
+      { name: "@eventId", value: eventId },
+    ],
+  };
 
-      const original = safeFileName(it.fileName || it.mediaId || "media");
-      const ext = original.includes(".")
-        ? ""
-        : guessExtFromContentType(it.contentType);
-      const desired = `${original}${ext}`;
-      const entryName = uniqueName(usedNames, desired);
+  const { resources } = await media.items.query(querySpec).fetchAll();
+  const items: Array<{
+    mediaId: string;
+    blobUrl: string;
+    fileName?: string;
+    contentType?: string;
+    createdAt?: string;
+  }> = resources ?? [];
 
-      try {
-        const blobClient = blobClientFromBlobUrl(it.blobUrl);
-        const dl = await blobClient.download();
-        const readable = dl.readableStreamBody;
+  // ---- Prepare streaming ZIP response ----
+  const zipNameBase = safeFileName(ev.title || "event");
+  const zipFileName = `${zipNameBase}.zip`;
 
-        if (!readable) {
-          context.log("No readableStreamBody for", it.mediaId);
-          continue;
-        }
+  const out = new PassThrough();
 
-        archive.append(readable as any, { name: entryName });
-      } catch (e: any) {
-        context.log("Failed to add blob to ZIP:", it.mediaId, e?.message);
+  // Important: mark as raw stream so Functions host doesn't JSON-wrap it.
+  (context as any).res = {
+    status: 200,
+    headers: {
+      ...corsHeaders(),
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${zipFileName}"`,
+      "Cache-Control": "no-store",
+    },
+    body: out,
+    isRaw: true,
+  };
+
+  const archive = archiver("zip", { zlib: { level: 9 } });
+
+  // If archiver throws, terminate the stream so the client doesn’t hang.
+  archive.on("error", (err: any) => {
+    context.log("ZIP error:", err?.message || err);
+    try {
+      out.destroy(err);
+    } catch {}
+  });
+
+  // Non-fatal warnings
+  archive.on("warning", (err: any) => {
+    context.log("ZIP warning:", err?.message || err);
+  });
+
+  // Pipe archive into HTTP response stream
+  archive.pipe(out);
+
+  const usedNames = new Set<string>();
+
+  // Append each blob stream
+  for (const it of items) {
+    if (!it?.blobUrl) continue;
+
+    const original = safeFileName(it.fileName || it.mediaId || "media");
+    const ext = original.includes(".")
+      ? ""
+      : guessExtFromContentType(it.contentType);
+    const entryName = uniqueName(usedNames, `${original}${ext}`);
+
+    try {
+      const blobClient = blobClientFromBlobUrl(it.blobUrl);
+      const dl = await blobClient.download();
+      const readable = dl.readableStreamBody;
+
+      if (!readable) {
+        context.log("No readableStreamBody for", it.mediaId);
         continue;
       }
+
+      archive.append(readable as any, { name: entryName });
+    } catch (e: any) {
+      // Best-effort: skip broken blobs instead of hanging
+      context.log("Failed to add blob:", it.mediaId, e?.message);
+      continue;
     }
-
-    // Finalize + wait until stream finishes to avoid truncation
-    archive.finalize();
-
-    await new Promise<void>((resolve, reject) => {
-      const done = () => resolve();
-      out.on("finish", done);
-      out.on("close", done);
-      out.on("error", reject);
-      archive.on("error", reject);
-    });
-  } catch (err: any) {
-    context.log("EventDownload error:", err?.message);
-    context.log(err?.stack);
-
-    (context as any).res = {
-      status: 500,
-      headers: { ...corsHeaders(), "Content-Type": "application/json" },
-      body: {
-        error: "Internal Server Error",
-        message: err?.message ?? "Unknown error",
-      },
-    };
   }
+
+  // Finalize signals “no more entries”
+  archive.finalize();
+
+  // CRITICAL: wait until the response stream actually finishes,
+  // otherwise the platform may keep the request “pending”.
+  await new Promise<void>((resolve, reject) => {
+    const done = () => resolve();
+
+    out.on("finish", done);
+    out.on("close", done);
+    out.on("end", done);
+
+    out.on("error", reject);
+    archive.on("error", reject);
+  });
 }
