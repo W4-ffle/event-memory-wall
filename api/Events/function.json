@@ -5,8 +5,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get", "post", "patch", "delete", "put", "options"],
-      "route": "v1/events/{eventId?}"
+      "methods": ["get", "post", "options"],
+      "route": "v1/events"
     },
     {
       "type": "http",
