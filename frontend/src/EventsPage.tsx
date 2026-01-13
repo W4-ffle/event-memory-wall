@@ -67,34 +67,43 @@ export default function EventsPage() {
       )}
 
       <h2>Events</h2>
-      {events.map((ev) => (
-        <div
-          key={ev.id}
-          style={{
-            marginBottom: 24,
-            paddingBottom: 16,
-            borderBottom: "1px solid #ddd",
-          }}
-        >
-          <strong>{ev.title}</strong>
-          <div style={{ fontSize: 12, color: "#666" }}>{ev.eventId}</div>
 
-          <MediaGallery eventId={ev.eventId} />
-        </div>
-      ))}
-      {events[0] && (
-        <div
-          style={{ marginTop: 24, paddingTop: 12, borderTop: "1px solid #ddd" }}
-        >
-          <h3>Upload to first event</h3>
+      <div style={{ display: "grid", gap: 18 }}>
+        {events.map((ev) => (
+          <div
+            key={ev.id}
+            style={{
+              padding: 14,
+              border: "1px solid #eee",
+              borderRadius: 10,
+              background: "#fff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700 }}>{ev.title}</div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>{ev.eventId}</div>
+              </div>
+            </div>
 
-          <div style={{ marginBottom: 8 }}>
-            <strong>{events[0].title}</strong>
+            <div style={{ marginTop: 12 }}>
+              <UploadMedia eventId={ev.eventId} />
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              {/* you already have this component */}
+              {/* import MediaGallery from "./MediaGallery"; at the top if needed */}
+              <MediaGallery eventId={ev.eventId} />
+            </div>
           </div>
-
-          <UploadMedia eventId={events[0].eventId} />
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
