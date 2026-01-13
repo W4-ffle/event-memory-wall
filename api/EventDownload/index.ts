@@ -44,11 +44,32 @@ function uniqueName(used: Set<string>, desired: string): string {
   return next;
 }
 
+function streamToBuffer(stream: PassThrough): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timeout: ${label}`)), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }).catch((e) => {
+      clearTimeout(t);
+      reject(e);
+    });
+  });
+}
+
 export default async function (
   context: InvocationContext,
   req: HttpRequest
 ): Promise<void> {
-  // CORS preflight
   if (handleOptions(context, req)) return;
 
   if (req.method !== "GET") {
@@ -103,7 +124,7 @@ export default async function (
     return;
   }
 
-  // ---- Load media list (exclude DELETED) ----
+  // ---- Load media list ----
   const media = await getMediaContainer();
   const querySpec = {
     query: `
@@ -126,31 +147,14 @@ export default async function (
     blobUrl: string;
     fileName?: string;
     contentType?: string;
-    createdAt?: string;
   }> = resources ?? [];
 
-  // ---- Prepare streaming ZIP response ----
+  // ---- Build ZIP to a Buffer (most reliable for Windows) ----
   const zipNameBase = safeFileName(ev.title || "event");
   const zipFileName = `${zipNameBase}.zip`;
 
-  const out = new PassThrough();
-
-  // IMPORTANT:
-  // Do NOT await stream completion in Azure Functions.
-  // The host typically starts flushing the response after the function returns.
-  (context as any).res = {
-    status: 200,
-    headers: {
-      ...corsHeaders(),
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${zipFileName}"`,
-      "Cache-Control": "no-store",
-      // Optional but useful if you ever read filename client-side
-      "Access-Control-Expose-Headers": "Content-Disposition",
-    },
-    body: out,
-    isRaw: true,
-  };
+  const zipOut = new PassThrough();
+  const zipBufferPromise = streamToBuffer(zipOut);
 
   const archive = archiver("zip", { zlib: { level: 9 } });
 
@@ -161,58 +165,62 @@ export default async function (
   archive.on("error", (err: any) => {
     context.log("ZIP error:", err?.message || err);
     try {
-      out.destroy(err);
+      zipOut.destroy(err);
     } catch {}
   });
 
-  out.on("error", (err: any) => {
-    context.log("Response stream error:", err?.message || err);
-    try {
-      archive.abort();
-    } catch {}
-  });
-
-  // Pipe archive into the HTTP response stream
-  archive.pipe(out);
+  archive.pipe(zipOut);
 
   const usedNames = new Set<string>();
 
-  // If there are no items, add a tiny README so Windows sees a valid non-empty zip reliably
   if (!items.length) {
     archive.append("No media in this event.\n", { name: "README.txt" });
-    archive.finalize(); // DO NOT await
-    return; // allow host to stream
-  }
+  } else {
+    for (const it of items) {
+      if (!it?.blobUrl) continue;
 
-  // Append each blob stream
-  for (const it of items) {
-    if (!it?.blobUrl) continue;
+      const original = safeFileName(it.fileName || it.mediaId || "media");
+      const ext = original.includes(".")
+        ? ""
+        : guessExtFromContentType(it.contentType);
+      const entryName = uniqueName(usedNames, `${original}${ext}`);
 
-    const original = safeFileName(it.fileName || it.mediaId || "media");
-    const ext = original.includes(".")
-      ? ""
-      : guessExtFromContentType(it.contentType);
-    const entryName = uniqueName(usedNames, `${original}${ext}`);
+      try {
+        const blobClient = blobClientFromBlobUrl(it.blobUrl);
 
-    try {
-      const blobClient = blobClientFromBlobUrl(it.blobUrl);
-      const dl = await blobClient.download();
-      const readable = dl.readableStreamBody;
+        // Prevent a single slow blob from hanging the whole ZIP
+        const dl = await withTimeout(blobClient.download(), 30_000, `download ${it.mediaId}`);
 
-      if (!readable) {
-        context.log("No readableStreamBody for", it.mediaId);
+        const readable = dl.readableStreamBody;
+        if (!readable) {
+          context.log("No readableStreamBody for", it.mediaId);
+          continue;
+        }
+
+        archive.append(readable as any, { name: entryName });
+      } catch (e: any) {
+        context.log("Failed to add blob:", it.mediaId, e?.message || e);
         continue;
       }
-
-      archive.append(readable as any, { name: entryName });
-    } catch (e: any) {
-      // Best-effort: skip broken blobs
-      context.log("Failed to add blob:", it.mediaId, e?.message);
-      continue;
     }
   }
 
-  // Finalize signals “no more entries”
-  archive.finalize(); // DO NOT await
-  // Return immediately so the Functions host can flush the stream.
+  // Finalize and wait for the buffer (this ensures a valid ZIP central directory)
+  archive.finalize();
+
+  const zipBuf = await zipBufferPromise;
+
+  (context as any).res = {
+    status: 200,
+    headers: {
+      ...corsHeaders(),
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${zipFileName}"`,
+      "Cache-Control": "no-store",
+      "Access-Control-Expose-Headers": "Content-Disposition",
+    },
+    body: zipBuf,
+    // Important when returning binary buffers
+    isRaw: true,
+  };
 }
