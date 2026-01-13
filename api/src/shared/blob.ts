@@ -120,6 +120,11 @@ export async function deleteBlobIfPossible(blobUrl: string): Promise<void> {
   await blobClient.deleteIfExists();
 }
 
+/**
+ * FIXED: Create an authenticated BlobClient from a plain blobUrl (no SAS).
+ * This MUST use account key credentials server-side; anonymous will not work
+ * for private containers and can lead to downloading HTML error pages elsewhere.
+ */
 export function blobClientFromBlobUrl(blobUrl: string): BlobClient {
   const { accountName, cred } = getCred();
 
@@ -136,6 +141,9 @@ export function blobClientFromBlobUrl(blobUrl: string): BlobClient {
   return service.getContainerClient(container).getBlobClient(blobName);
 }
 
+/**
+ * FIXED: Download a readable stream for a blobUrl (no SAS), authenticated server-side.
+ */
 export async function downloadBlobStreamFromBlobUrl(
   blobUrl: string
 ): Promise<Readable | null> {
@@ -152,6 +160,7 @@ export async function downloadBlobStreamFromBlobUrl(
   const blobClient = service
     .getContainerClient(container)
     .getBlobClient(blobName);
+
   const resp = await blobClient.download();
   return (resp.readableStreamBody as any) || null;
 }
