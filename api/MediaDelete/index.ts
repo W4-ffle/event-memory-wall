@@ -1,6 +1,6 @@
 import { HttpRequest } from "@azure/functions";
-import { makeReadSasFromBlobUrl } from "../src/shared/blob";
 import { getMediaContainer } from "../src/shared/cosmos";
+import { deleteBlobIfPossible } from "../src/shared/blob";
 import { getAuth, requireLogin, getHeader } from "../src/shared/auth";
 import { loadEventByHostAndId, isMember } from "../src/shared/eventAccess";
 
@@ -23,9 +23,23 @@ function handleOptions(context: any, req: HttpRequest): boolean {
   return true;
 }
 
+function send(context: any, status: number, body: any) {
+  context.res = {
+    status,
+    headers: { ...corsHeaders(), "Content-Type": "application/json" },
+    body,
+  };
+}
+
 export default async function (context: any, req: HttpRequest): Promise<void> {
   try {
     if (handleOptions(context, req)) return;
+
+    // This function should ONLY be called with DELETE.
+    if (req.method !== "DELETE") {
+      send(context, 405, { error: "Method not allowed" });
+      return;
+    }
 
     const hostId = getHeader(req as any, "x-host-id") || "demo-host";
 
@@ -33,46 +47,32 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     const mediaId = context?.bindingData?.mediaId as string;
 
     if (!eventId || !mediaId) {
-      context.res = {
-        status: 400,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "eventId and mediaId are required" },
-      };
+      send(context, 400, { error: "eventId and mediaId are required" });
       return;
     }
 
     const { userId, isAdmin } = getAuth(req);
+
     if (!requireLogin(userId)) {
-      context.res = {
-        status: 401,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Login required" },
-      };
+      send(context, 401, { error: "Login required" });
       return;
     }
 
-    // membership enforcement
+    // membership enforcement (admin OR event member)
     const ev = await loadEventByHostAndId(hostId, eventId);
     if (!ev || ev.status === "DELETED") {
-      context.res = {
-        status: 404,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Not found" },
-      };
+      send(context, 404, { error: "Not found" });
       return;
     }
 
     if (!isAdmin && !isMember(ev, userId)) {
-      context.res = {
-        status: 403,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Forbidden" },
-      };
+      send(context, 403, { error: "Forbidden" });
       return;
     }
 
     const container = await getMediaContainer();
 
+    // Find the media doc
     const querySpec = {
       query: `
         SELECT TOP 1 * FROM c
@@ -91,39 +91,38 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     const { resources } = await container.items.query(querySpec).fetchAll();
     const doc = resources?.[0];
 
-    if (!doc?.blobUrl) {
-      context.res = {
-        status: 404,
-        headers: { ...corsHeaders(), "Content-Type": "application/json" },
-        body: { error: "Media not found" },
-      };
+    if (!doc) {
+      send(context, 404, { error: "Not found" });
       return;
     }
 
-    const sas = makeReadSasFromBlobUrl(doc.blobUrl);
-
-    context.res = {
-      status: 200,
-      headers: { ...corsHeaders(), "Content-Type": "application/json" },
-      body: {
-        readUrl: sas.readUrl,
-        expiresOn: sas.expiresOn,
-        blobUrl: doc.blobUrl,
-        mediaId: doc.mediaId,
-        eventId: doc.eventId,
-      },
+    // Soft delete in Cosmos
+    const now = new Date().toISOString();
+    const updated = {
+      ...doc,
+      status: "DELETED",
+      deletedAt: now,
+      deletedBy: userId,
     };
+
+    await container.items.upsert(updated);
+
+    // Best-effort blob delete (optional)
+    try {
+      if (doc.blobUrl) {
+        await deleteBlobIfPossible(doc.blobUrl);
+      }
+    } catch (e: any) {
+      context.log("Blob delete failed (ignored):", e?.message);
+    }
+
+    send(context, 200, { ok: true, eventId, mediaId });
   } catch (err: any) {
-    context.log("MediaReadSas error:", err?.message);
+    context.log("MediaDelete error:", err?.message);
     context.log(err?.stack);
-
-    context.res = {
-      status: 500,
-      headers: { ...corsHeaders(), "Content-Type": "application/json" },
-      body: {
-        error: "Internal server error",
-        message: err?.message ?? "Unknown error",
-      },
-    };
+    send(context, 500, {
+      error: "Internal server error",
+      message: err?.message ?? "Unknown error",
+    });
   }
 }
