@@ -57,13 +57,7 @@ export default function MediaGallery({
             );
 
             const displayUrl = pickDisplayUrl(sas);
-
-            if (!displayUrl) {
-              const keys = Object.keys(sas ?? {}).join(", ");
-              throw new Error(
-                `SAS response missing downloadUrl/url (mediaId=${m.mediaId}). Keys: ${keys}`
-              );
-            }
+            if (!displayUrl) throw new Error("Invalid SAS response");
 
             return { ...m, displayUrl };
           })
@@ -113,12 +107,17 @@ export default function MediaGallery({
       {media.map((m) => (
         <div
           key={m.mediaId}
-          style={{ border: "1px solid #eee", borderRadius: 8, padding: 8 }}
+          style={{
+            border: "1px solid #eee",
+            borderRadius: 8,
+            padding: 8,
+            background: "#fff",
+          }}
         >
           {m.type === "IMAGE" ? (
             <img
               src={m.displayUrl}
-              alt={m.fileName}
+              alt=""
               style={{ width: "100%", borderRadius: 6 }}
               loading="lazy"
             />
@@ -129,10 +128,6 @@ export default function MediaGallery({
               style={{ width: "100%", borderRadius: 6 }}
             />
           )}
-
-          <div style={{ fontSize: 12, marginTop: 6, wordBreak: "break-word" }}>
-            {m.fileName}
-          </div>
 
           <button
             onClick={() => onDelete(m.mediaId)}

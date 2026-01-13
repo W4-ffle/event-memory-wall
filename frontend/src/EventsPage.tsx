@@ -311,9 +311,6 @@ export default function EventsPage() {
                   {!isEditing ? (
                     <>
                       <div style={{ fontWeight: 700 }}>{ev.title}</div>
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>
-                        {ev.eventId}
-                      </div>
 
                       {/* Show a compact members line (useful for admin + members) */}
                       {membersClean.length > 0 && (
