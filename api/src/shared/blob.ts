@@ -3,6 +3,7 @@ import {
   generateBlobSASQueryParameters,
   BlobSASPermissions,
   BlobServiceClient,
+  BlobClient,
 } from "@azure/storage-blob";
 
 function required(name: string): string {
@@ -116,4 +117,20 @@ export async function deleteBlobIfPossible(blobUrl: string): Promise<void> {
 
   // deleteIfExists avoids throwing if it's already gone (common with retries)
   await blobClient.deleteIfExists();
+}
+
+export function blobClientFromBlobUrl(blobUrl: string): BlobClient {
+  const { accountName, cred } = getCred();
+
+  const { container, blobName } = parseBlobUrl(blobUrl);
+  if (!container || !blobName) {
+    throw new Error("Invalid blobUrl (missing container/blobName)");
+  }
+
+  const service = new BlobServiceClient(
+    `https://${accountName}.blob.core.windows.net`,
+    cred
+  );
+
+  return service.getContainerClient(container).getBlobClient(blobName);
 }

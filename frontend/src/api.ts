@@ -142,3 +142,17 @@ export async function apiPostRawNoBody(path: string): Promise<any> {
   if (ct.includes("application/json")) return res.json();
   return res.text();
 }
+
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "GET",
+    headers: { ...authHeaders() },
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`GET (blob) ${path} failed: ${res.status} ${text}`);
+  }
+
+  return res.blob();
+}
