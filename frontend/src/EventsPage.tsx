@@ -20,12 +20,6 @@ export default function EventsPage() {
   // per-event refresh counter (bump after uploads/deletes)
   const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
 
-  // inline delete confirmation state
-  const [confirmDeleteEventId, setConfirmDeleteEventId] = useState<
-    string | null
-  >(null);
-  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
-
   function bumpRefresh(eventId: string) {
     setMediaRefresh((prev) => ({
       ...prev,
@@ -43,6 +37,23 @@ export default function EventsPage() {
     }
   }
 
+  async function deleteEvent(ev: EventDoc) {
+    setError(null);
+
+    // ✅ Confirmation prompt
+    const ok = window.confirm(
+      `Delete event "${ev.title}"?\n\nThis will also delete all media under the event.`
+    );
+    if (!ok) return;
+
+    try {
+      await apiDeleteRaw(`/events/${ev.eventId}`);
+      await load(); // refresh events list
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
   async function create() {
     setError(null);
     try {
@@ -50,21 +61,6 @@ export default function EventsPage() {
       setTitle("");
       await load();
     } catch (e: any) {
-      setError(e.message);
-    }
-  }
-
-  async function deleteEventConfirmed(ev: EventDoc) {
-    setError(null);
-    setDeletingEventId(ev.eventId);
-
-    try {
-      await apiDeleteRaw(`/events/${ev.eventId}`);
-      setConfirmDeleteEventId(null);
-      setDeletingEventId(null);
-      await load();
-    } catch (e: any) {
-      setDeletingEventId(null);
       setError(e.message);
     }
   }
@@ -100,104 +96,60 @@ export default function EventsPage() {
       <h2>Events</h2>
 
       <div style={{ display: "grid", gap: 18 }}>
-        {events.map((ev) => {
-          const isConfirming = confirmDeleteEventId === ev.eventId;
-          const isDeleting = deletingEventId === ev.eventId;
-
-          return (
+        {events.map((ev) => (
+          <div
+            key={ev.id}
+            style={{
+              padding: 14,
+              border: "1px solid #eee",
+              borderRadius: 10,
+              background: "#fff",
+            }}
+          >
             <div
-              key={ev.id}
               style={{
-                padding: 14,
-                border: "1px solid #eee",
-                borderRadius: 10,
-                background: "#fff",
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "center",
               }}
             >
-              <div
+              <div>
+                <div style={{ fontWeight: 700 }}>{ev.title}</div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>{ev.eventId}</div>
+              </div>
+
+              {/* ✅ Delete event button with confirmation */}
+              <button
+                onClick={() => deleteEvent(ev)}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  alignItems: "center",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  cursor: "pointer",
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 700 }}>{ev.title}</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>{ev.eventId}</div>
-                </div>
-
-                {!isConfirming ? (
-                  <button
-                    onClick={() => setConfirmDeleteEventId(ev.eventId)}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Delete Event
-                  </button>
-                ) : (
-                  <div
-                    style={{ display: "flex", gap: 8, alignItems: "center" }}
-                  >
-                    <span style={{ fontSize: 12, opacity: 0.8 }}>
-                      Delete this event and all its media?
-                    </span>
-
-                    <button
-                      onClick={() => setConfirmDeleteEventId(null)}
-                      disabled={isDeleting}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: isDeleting ? "not-allowed" : "pointer",
-                        opacity: isDeleting ? 0.6 : 1,
-                      }}
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      onClick={() => deleteEventConfirmed(ev)}
-                      disabled={isDeleting}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: isDeleting ? "not-allowed" : "pointer",
-                        opacity: isDeleting ? 0.6 : 1,
-                      }}
-                    >
-                      {isDeleting ? "Deleting..." : "Confirm delete"}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <UploadMedia
-                  eventId={ev.eventId}
-                  onUploaded={() => bumpRefresh(ev.eventId)}
-                />
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <MediaGallery
-                  eventId={ev.eventId}
-                  refreshKey={mediaRefresh[ev.eventId] ?? 0}
-                  onDeleted={() => bumpRefresh(ev.eventId)}
-                />
-              </div>
+                Delete Event
+              </button>
             </div>
-          );
-        })}
+
+            <div style={{ marginTop: 12 }}>
+              <UploadMedia
+                eventId={ev.eventId}
+                onUploaded={() => bumpRefresh(ev.eventId)}
+              />
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <MediaGallery
+                eventId={ev.eventId}
+                refreshKey={mediaRefresh[ev.eventId] ?? 0}
+                onDeleted={() => bumpRefresh(ev.eventId)}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
