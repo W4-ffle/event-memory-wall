@@ -8,6 +8,37 @@ function apiUrl(path: string) {
   return `${BASE}${path}`;
 }
 
+async function readError(res: Response): Promise<string> {
+  const ct = res.headers.get("content-type") || "";
+  const text = await res.text().catch(() => "");
+  if (ct.includes("application/json")) {
+    try {
+      const j = JSON.parse(text);
+      const msg = j?.message || j?.error || text;
+      return typeof msg === "string" ? msg : text;
+    } catch {
+      return text;
+    }
+  }
+  return text;
+}
+
+function authHeaders(): Record<string, string> {
+  const s = getSession();
+
+  // Always include host id (your backend relies on it)
+  const h: Record<string, string> = {
+    "x-host-id": "demo-host",
+  };
+
+  if (!s?.userId) return h;
+
+  h["x-user-id"] = s.userId;
+  if (s.adminPasscode) h["x-admin-passcode"] = s.adminPasscode;
+
+  return h;
+}
+
 function getSession(): any {
   try {
     return JSON.parse(localStorage.getItem("emw_session") || "null");
@@ -68,12 +99,20 @@ export async function apiPatch(path: string, body?: unknown): Promise<void> {
   if (!res.ok) throw new Error(await parseError(res));
 }
 
-export async function apiDeleteRaw(path: string): Promise<void> {
-  const res = await fetch(apiUrl(path), {
+export async function apiDeleteRaw(path: string) {
+  const res = await fetch(`${BASE}${path}`, {
     method: "DELETE",
-    headers: buildHeaders(),
+    headers: { ...authHeaders() },
   });
-  if (!res.ok) throw new Error(await parseError(res));
+
+  if (!res.ok) {
+    const detail = await readError(res);
+    throw new Error(`DELETE ${path} failed: ${res.status} ${detail}`.trim());
+  }
+
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return res.text();
 }
 
 export async function apiGetBlob(path: string): Promise<Blob> {
