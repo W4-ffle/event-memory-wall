@@ -146,6 +146,21 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
         return;
       }
 
+      function uniqueStrings(xs: any[]): string[] {
+        return Array.from(
+          new Set(
+            (xs ?? [])
+              .map(String)
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        );
+      }
+
+      const nextMemberIds = Array.isArray(body.memberIds)
+        ? uniqueStrings(body.memberIds)
+        : current.memberIds;
+
       const updated = {
         ...current,
         title:
@@ -162,6 +177,13 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
           typeof body.visibility === "string"
             ? body.visibility
             : current.visibility,
+
+        // ✅ membership: allow admin to set memberIds
+        // always ensure ownerId stays included
+        memberIds: Array.isArray(nextMemberIds)
+          ? uniqueStrings([current.ownerId, ...nextMemberIds].filter(Boolean))
+          : current.memberIds,
+
         updatedAt: new Date().toISOString(),
       };
 
@@ -169,7 +191,6 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
       send(context, 200, updated);
       return;
     }
-
     // -------------------------
     // DELETE /v1/events/{eventId} (ADMIN ONLY)
     // Soft delete event + media + best-effort blob delete

@@ -1,23 +1,76 @@
 import { HttpRequest } from "@azure/functions";
 import { randomUUID } from "crypto";
 import { getMediaContainer } from "../src/shared/cosmos";
+import { getAuth, requireLogin, getHeader } from "../src/shared/auth";
+import { loadEventByHostAndId, isMember } from "../src/shared/eventAccess";
 
-function header(req: any, name: string) {
-  const h = (req?.headers ?? {}) as Record<string, any>;
-  return h[name] || h[name.toLowerCase()] || h[name.toUpperCase()];
+// ---- CORS ----
+const ALLOWED_ORIGIN = "https://stgemwjb.z33.web.core.windows.net";
+const ALLOWED_HEADERS = "Content-Type, x-host-id, x-user-id, x-admin-passcode";
+const ALLOWED_METHODS = "GET,POST,PATCH,DELETE,OPTIONS";
+
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+    "Access-Control-Allow-Headers": ALLOWED_HEADERS,
+    "Access-Control-Allow-Methods": ALLOWED_METHODS,
+  };
+}
+
+function handleOptions(context: any, req: HttpRequest): boolean {
+  if (req.method !== "OPTIONS") return false;
+  context.res = { status: 204, headers: { ...corsHeaders() }, body: "" };
+  return true;
 }
 
 export default async function (context: any, req: HttpRequest): Promise<void> {
   context.log("media handler reached");
 
   try {
+    if (handleOptions(context, req)) return;
+
     const eventId = context?.bindingData?.eventId;
     if (!eventId) {
-      context.res = { status: 400, body: { error: "eventId is required" } };
+      context.res = {
+        status: 400,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "eventId is required" },
+      };
       return;
     }
 
-    const hostId = header(req, "x-host-id") || "demo-host";
+    const hostId = getHeader(req as any, "x-host-id") || "demo-host";
+
+    const { userId, isAdmin } = getAuth(req);
+    if (!requireLogin(userId)) {
+      context.res = {
+        status: 401,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Login required" },
+      };
+      return;
+    }
+
+    // membership enforcement (for BOTH GET and POST)
+    const ev = await loadEventByHostAndId(hostId, String(eventId));
+    if (!ev || ev.status === "DELETED") {
+      context.res = {
+        status: 404,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Not found" },
+      };
+      return;
+    }
+
+    if (!isAdmin && !isMember(ev, userId)) {
+      context.res = {
+        status: 403,
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
+        body: { error: "Forbidden" },
+      };
+      return;
+    }
+
     const container = await getMediaContainer();
 
     // GET: list media for an event (FILTER OUT SOFT-DELETED)
@@ -40,7 +93,7 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
 
       context.res = {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
         body: resources ?? [],
       };
       return;
@@ -53,13 +106,18 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
         body = (req as any).body;
         if (typeof body === "string") body = JSON.parse(body);
       } catch {
-        context.res = { status: 400, body: { error: "Invalid JSON body" } };
+        context.res = {
+          status: 400,
+          headers: { ...corsHeaders(), "Content-Type": "application/json" },
+          body: { error: "Invalid JSON body" },
+        };
         return;
       }
 
       if (!body?.blobUrl || !body?.fileName) {
         context.res = {
           status: 400,
+          headers: { ...corsHeaders(), "Content-Type": "application/json" },
           body: { error: "blobUrl and fileName are required" },
         };
         return;
@@ -69,11 +127,11 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
       const mediaId = body.mediaId || `media_${randomUUID()}`;
 
       const doc = {
-        id: mediaId, // Cosmos id
-        mediaId, // app id
+        id: mediaId,
+        mediaId,
         hostId,
         eventId,
-        uploaderId: body.uploaderId || "anonymous",
+        uploaderId: String(userId), // ✅ enforce uploaderId from auth
         blobUrl: body.blobUrl,
         type: body.type || "IMAGE",
         fileName: body.fileName,
@@ -87,20 +145,24 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
 
       context.res = {
         status: 201,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders(), "Content-Type": "application/json" },
         body: doc,
       };
       return;
     }
 
-    context.res = { status: 405, body: { error: "Method not allowed" } };
+    context.res = {
+      status: 405,
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
+      body: { error: "Method not allowed" },
+    };
   } catch (err: any) {
     context.log("MEDIA FAILED:", err?.message);
     context.log(err?.stack);
 
     context.res = {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders(), "Content-Type": "application/json" },
       body: {
         error: "Internal server error",
         message: err?.message ?? "Unknown error",
