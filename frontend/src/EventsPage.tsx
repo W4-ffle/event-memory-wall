@@ -92,23 +92,18 @@ export default function EventsPage() {
     [session?.userId]
   );
 
-  // per-event refresh counter (bump after uploads/deletes)
   const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
 
-  // ---------- Edit state ----------
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
-  // ---------- Inline delete confirmation state ----------
   const [confirmDeleteEventId, setConfirmDeleteEventId] = useState<
     string | null
   >(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
 
-  // ---------- “Details panel” selection ----------
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-  // ---------- Card metadata (cover + counts) ----------
   const [cardMeta, setCardMeta] = useState<
     Record<
       string,
@@ -120,12 +115,10 @@ export default function EventsPage() {
     >
   >({});
 
-  // ---------- Create modal ----------
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [creating, setCreating] = useState(false);
 
-  // ---------- Download state ----------
   const [downloadingEventId, setDownloadingEventId] = useState<string | null>(
     null
   );
@@ -168,7 +161,6 @@ export default function EventsPage() {
       const data = await apiGet<EventDoc[]>("/events");
       setEvents(data);
 
-      // init meta
       const baseMeta: Record<
         string,
         { coverUrl?: string; mediaCount: number; contributorCount: number }
@@ -182,7 +174,6 @@ export default function EventsPage() {
       }
       setCardMeta(baseMeta);
 
-      // best-effort cover/count for each event
       await Promise.all(
         (data ?? []).map(async (ev) => {
           try {
@@ -215,7 +206,6 @@ export default function EventsPage() {
         })
       );
 
-      // auto-select first event if none selected
       if (!selectedEventId && (data ?? []).length > 0) {
         setSelectedEventId((data ?? [])[0].eventId);
       }
@@ -241,8 +231,6 @@ export default function EventsPage() {
       setCreateTitle("");
       setCreateOpen(false);
       await load();
-
-      // best-effort select the newly created event
       if (created?.eventId) setSelectedEventId(created.eventId);
     } catch (e: any) {
       setError(e.message);
@@ -320,7 +308,6 @@ export default function EventsPage() {
     }
   }
 
-  // --------- Delete event ----------
   function requestDelete(ev: EventDoc) {
     if (!admin) {
       setError("Admin only: you cannot delete events.");
@@ -378,15 +365,13 @@ export default function EventsPage() {
   return (
     <div
       style={{
-        // FULL VIEWPORT (prevents parent wrappers from constraining width/height)
         position: "fixed",
         inset: 0,
         width: "100vw",
         height: "100vh",
         overflow: "auto",
-
         fontFamily: "system-ui",
-        background: "#f7f7f8", // subtle off-white
+        background: "#f7f7f8",
         color: "#111827",
       }}
     >
@@ -473,7 +458,7 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Main content uses full screen width */}
+      {/* Main content */}
       <div style={{ paddingTop: navbarHeight }}>
         <div style={{ padding: "24px", boxSizing: "border-box" }}>
           <div style={{ marginBottom: 18 }}>
@@ -498,7 +483,7 @@ export default function EventsPage() {
             </div>
           )}
 
-          {/* Cards grid (full width) */}
+          {/* Cards grid */}
           <div
             style={{
               display: "grid",
@@ -607,7 +592,7 @@ export default function EventsPage() {
             })}
           </div>
 
-          {/* Selected event details panel */}
+          {/* Selected event details */}
           {selectedEvent && (
             <div style={{ marginTop: 26, maxWidth: 1100 }}>
               <div
@@ -652,9 +637,8 @@ export default function EventsPage() {
                     )}
                   </div>
 
-                  {/* Right-side controls: Download for members/admin; Edit/Delete only admin */}
                   {(() => {
-                    const canManage = canManageMembers(selectedEvent); // member or admin
+                    const canManage = canManageMembers(selectedEvent);
                     const canDownload = admin || canManage;
 
                     return (
@@ -682,7 +666,6 @@ export default function EventsPage() {
                                   : 1,
                               fontWeight: 600,
                             }}
-                            title="Download all media as a ZIP"
                           >
                             {downloadingEventId === selectedEvent.eventId
                               ? "Preparing..."
@@ -861,7 +844,7 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Create Event modal overlay */}
+      {/* Create Event modal */}
       {createOpen && (
         <div
           onMouseDown={(e) => {

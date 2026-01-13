@@ -5,6 +5,7 @@ import {
   BlobServiceClient,
   BlobClient,
 } from "@azure/storage-blob";
+import type { Readable } from "stream";
 
 function required(name: string): string {
   const v = process.env[name];
@@ -114,21 +115,16 @@ export async function deleteBlobIfPossible(blobUrl: string): Promise<void> {
   const blobClient = service
     .getContainerClient(container)
     .getBlobClient(blobName);
-
-  // deleteIfExists avoids throwing if it's already gone (common with retries)
   await blobClient.deleteIfExists();
 }
 
-// ------------------------------
-// Download helpers (used by EventDownload)
-// ------------------------------
-
 /**
- * Server-side BlobClient from a full blobUrl (no SAS required because we use account key).
- * Keeps existing exports untouched; adds new helpers for downloads.
+ * IMPORTANT: This MUST return an authenticated client (account key),
+ * because stored blobUrl is typically not a SAS URL.
  */
 export function blobClientFromBlobUrl(blobUrl: string): BlobClient {
   const { accountName, cred } = getCred();
+
   const { container, blobName } = parseBlobUrl(blobUrl);
   if (!container || !blobName) {
     throw new Error("Invalid blobUrl (missing container/blobName)");
@@ -138,31 +134,13 @@ export function blobClientFromBlobUrl(blobUrl: string): BlobClient {
     `https://${accountName}.blob.core.windows.net`,
     cred
   );
-
   return service.getContainerClient(container).getBlobClient(blobName);
 }
 
-/**
- * Download a blob as a Node.js Readable stream using account-key auth.
- * Returns null if the URL is invalid.
- */
 export async function downloadBlobStreamFromBlobUrl(
   blobUrl: string
-): Promise<import("stream").Readable | null> {
-  const { accountName, cred } = getCred();
-
-  const { container, blobName } = parseBlobUrl(blobUrl);
-  if (!container || !blobName) return null;
-
-  const service = new BlobServiceClient(
-    `https://${accountName}.blob.core.windows.net`,
-    cred
-  );
-
-  const blobClient = service
-    .getContainerClient(container)
-    .getBlobClient(blobName);
-
-  const resp = await blobClient.download();
+): Promise<Readable | null> {
+  const client = blobClientFromBlobUrl(blobUrl);
+  const resp = await client.download();
   return (resp.readableStreamBody as any) || null;
 }
