@@ -99,8 +99,8 @@ export default function EventsPage() {
   }
 
   async function create() {
-    if (!admin) {
-      setError("Admin only: you cannot create events.");
+    if (!session?.userId) {
+      setError("You must be signed in to create an event.");
       return;
     }
 
@@ -307,14 +307,16 @@ export default function EventsPage() {
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder={admin ? "New event title" : "Admin only: cannot create"}
+          placeholder={
+            session?.userId ? "New event title" : "Sign in to create"
+          }
           style={{ flex: 1, padding: 10 }}
-          disabled={!admin}
+          disabled={!session?.userId}
         />
         <button
           onClick={create}
           style={{ padding: "10px 14px" }}
-          disabled={!admin}
+          disabled={!session?.userId}
         >
           Create
         </button>

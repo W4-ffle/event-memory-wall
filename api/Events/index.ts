@@ -2,12 +2,7 @@
 import { HttpRequest, InvocationContext } from "@azure/functions";
 import { randomUUID } from "crypto";
 import { getEventsContainer } from "../src/shared/cosmos";
-import {
-  getAuth,
-  requireAdmin,
-  requireLogin,
-  getHeader,
-} from "../src/shared/auth";
+import { getAuth, requireLogin, getHeader } from "../src/shared/auth";
 import {
   json,
   badRequest,
@@ -28,6 +23,17 @@ function readJsonBody(req: HttpRequest): any {
   return raw;
 }
 
+function uniqueStrings(xs: any[]): string[] {
+  return Array.from(
+    new Set(
+      (xs ?? [])
+        .map(String)
+        .map((s) => s.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 export default async function (
   context: InvocationContext,
   req: HttpRequest
@@ -38,9 +44,6 @@ export default async function (
     const hostId = getHeader(req as any, "x-host-id") || "demo-host";
 
     const { userId, isAdmin } = getAuth(req);
-
-    // If you want public browsing, remove this.
-    // Right now your design is: must be logged in to see anything.
     if (!requireLogin(userId)) {
       json(context, 401, { error: "Login required" });
       return;
@@ -50,7 +53,7 @@ export default async function (
 
     // -------------------------
     // GET /v1/events
-    // Admin: all host events
+    // Admin: all events for host
     // User: only events where memberIds contains userId
     // -------------------------
     if (req.method === "GET") {
@@ -85,14 +88,12 @@ export default async function (
     }
 
     // -------------------------
-    // POST /v1/events (ADMIN ONLY)
+    // POST /v1/events
+    // Any logged-in user can create an event.
+    // Creator becomes owner + first member.
+    // (Admins still do NOT automatically get edit/delete unless you keep those checks elsewhere.)
     // -------------------------
     if (req.method === "POST") {
-      if (!requireAdmin(isAdmin)) {
-        json(context, 403, { error: "Admin only" });
-        return;
-      }
-
       const body = readJsonBody(req);
       if (!body) {
         badRequest(context, "Invalid or missing JSON body");
@@ -107,23 +108,28 @@ export default async function (
       const now = new Date().toISOString();
       const newEventId = `event_${randomUUID()}`;
 
+      // Optional: allow creator to add other members at creation time.
+      // If you don't want that yet, just keep memberIds: [userId].
+      const requestedMembers = Array.isArray(body.memberIds)
+        ? uniqueStrings(body.memberIds)
+        : [];
+
       const doc = {
         id: newEventId,
         eventId: newEventId,
         hostId,
         title: body.title.trim(),
-        description: body.description || "",
+        description:
+          typeof body.description === "string" ? body.description : "",
         startsAt: body.startsAt || null,
         endsAt: body.endsAt || null,
         visibility: body.visibility || "PRIVATE",
         status: "ACTIVE",
         createdAt: now,
 
-        // Ownership/membership
+        // ownership/membership
         ownerId: userId,
-        memberIds: Array.isArray(body.memberIds)
-          ? Array.from(new Set([userId, ...body.memberIds.map(String)]))
-          : [userId],
+        memberIds: uniqueStrings([userId, ...requestedMembers]),
       };
 
       await events.items.create(doc);
