@@ -29,125 +29,108 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
         fontFamily: "system-ui",
         minHeight: "100vh",
         background: "#fff",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
       }}
     >
-      <div style={{ width: "min(980px, 100%)" }}>
-        {/* Top bar */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            paddingBottom: 16,
-            borderBottom: "1px solid #eee",
-            marginBottom: 18,
-          }}
-        >
-          <div style={{ fontSize: 20, fontWeight: 800 }}>Memory Wall</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Sign in</div>
-        </div>
+      {/* Top navigation bar */}
+      <div
+        style={{
+          height: 64,
+          borderBottom: "1px solid #eee",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 24px",
+        }}
+      >
+        <div style={{ fontSize: 20, fontWeight: 800 }}>Memory Wall</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Sign in</div>
+      </div>
 
-        {/* Content */}
+      {/* Centered login content */}
+      <div
+        style={{
+          minHeight: "calc(100vh - 64px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
         <div
           style={{
-            display: "flex",
-            justifyContent: "center",
-            marginTop: 40,
+            width: "min(520px, 100%)",
+            border: "1px solid #eee",
+            borderRadius: 14,
+            background: "#fff",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+            padding: 24,
           }}
         >
-          <div
-            style={{
-              width: "min(520px, 100%)",
-              border: "1px solid #eee",
-              borderRadius: 14,
-              background: "#fff",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-              padding: 20,
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 800 }}>Welcome</div>
-            <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
-              Enter a username to join. Admins can optionally enter the passcode
-              to manage events.
+          <div style={{ fontSize: 18, fontWeight: 800 }}>Welcome</div>
+          <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
+            Enter a username to join. Admins can optionally enter the passcode
+            to manage events.
+          </div>
+
+          <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>
+                Username
+              </div>
+              <input
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+                placeholder="e.g. barry"
+                autoComplete="username"
+                style={{
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #ddd",
+                  outline: "none",
+                }}
+                onKeyDown={(e) => e.key === "Enter" && save()}
+              />
             </div>
 
-            <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>
-                  Username
-                </div>
-                <input
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  placeholder="e.g. barry"
-                  autoComplete="username"
-                  style={{
-                    padding: 12,
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    outline: "none",
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") save();
-                  }}
-                />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>
+                Admin passcode <span style={{ opacity: 0.6 }}>(optional)</span>
               </div>
-
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>
-                  Admin passcode{" "}
-                  <span style={{ fontWeight: 600, opacity: 0.6 }}>
-                    (optional)
-                  </span>
-                </div>
-                <input
-                  value={adminPasscode}
-                  onChange={(e) => setAdminPasscode(e.target.value)}
-                  placeholder="Enter passcode if you have it"
-                  autoComplete="current-password"
-                  type="password"
-                  style={{
-                    padding: 12,
-                    borderRadius: 12,
-                    border: "1px solid #ddd",
-                    outline: "none",
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") save();
-                  }}
-                />
-              </div>
-
-              <div
+              <input
+                value={adminPasscode}
+                onChange={(e) => setAdminPasscode(e.target.value)}
+                placeholder="Enter passcode if you have it"
+                type="password"
+                autoComplete="current-password"
                 style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 10,
-                  marginTop: 4,
+                  width: "100%",
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #ddd",
+                  outline: "none",
+                }}
+                onKeyDown={(e) => e.key === "Enter" && save()}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={save}
+                disabled={!canContinue}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 12,
+                  border: "1px solid #111",
+                  background: "#0b0b1a",
+                  color: "#fff",
+                  fontWeight: 800,
+                  cursor: canContinue ? "pointer" : "not-allowed",
+                  opacity: canContinue ? 1 : 0.6,
                 }}
               >
-                <button
-                  onClick={save}
-                  disabled={!canContinue}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    border: "1px solid #111",
-                    background: "#0b0b1a",
-                    color: "#fff",
-                    cursor: canContinue ? "pointer" : "not-allowed",
-                    opacity: canContinue ? 1 : 0.6,
-                    fontWeight: 800,
-                  }}
-                >
-                  Continue
-                </button>
-              </div>
+                Continue
+              </button>
             </div>
           </div>
         </div>
