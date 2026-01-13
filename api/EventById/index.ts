@@ -1,11 +1,7 @@
 import { HttpRequest } from "@azure/functions";
 import { getEventsContainer, getMediaContainer } from "../src/shared/cosmos";
 import { deleteBlobIfPossible } from "../src/shared/blob";
-
-function getHeader(req: any, name: string): string | undefined {
-  const h = (req?.headers ?? {}) as Record<string, any>;
-  return h[name] || h[name.toLowerCase()] || h[name.toUpperCase()];
-}
+import { getAuth, requireAdmin, requireLogin } from "../src/shared/auth";
 
 function readJsonBody(req: any): any | null {
   const raw = req?.body;
@@ -36,20 +32,32 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
       return;
     }
 
-    const hostId = getHeader(req, "x-host-id") || "demo-host";
+    const hostId =
+      ((req.headers as unknown as Record<string, any>)["x-host-id"] as
+        | string
+        | undefined) || "demo-host";
+
+    const { userId, isAdmin } = getAuth(req);
+
+    if (!requireLogin(userId)) {
+      send(context, 401, { error: "Login required" });
+      return;
+    }
 
     const events = await getEventsContainer();
 
-    // -------------------------
-    // GET /v1/events/{eventId}
-    // -------------------------
-    if (req.method === "GET") {
+    // Helper: load event (non-deleted optionally)
+    async function loadEvent(includeDeleted: boolean) {
       const q = {
         query: `
           SELECT TOP 1 * FROM c
           WHERE c.hostId = @hostId
             AND c.eventId = @eventId
-            AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')
+            ${
+              includeDeleted
+                ? ""
+                : "AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')"
+            }
         `,
         parameters: [
           { name: "@hostId", value: hostId },
@@ -58,10 +66,28 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
       };
 
       const { resources } = await events.items.query(q).fetchAll();
-      const ev = resources?.[0];
+      return resources?.[0] ?? null;
+    }
 
+    // Membership check
+    function isMember(ev: any): boolean {
+      const members: any[] = ev?.memberIds ?? [];
+      return Array.isArray(members) && members.includes(userId);
+    }
+
+    // -------------------------
+    // GET /v1/events/{eventId}
+    // -------------------------
+    if (req.method === "GET") {
+      const ev = await loadEvent(false);
       if (!ev) {
         send(context, 404, { error: "Not found" });
+        return;
+      }
+
+      // Admin can view any event; user must be a member
+      if (!isAdmin && !isMember(ev)) {
+        send(context, 403, { error: "Forbidden" });
         return;
       }
 
@@ -70,30 +96,21 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     }
 
     // -------------------------
-    // PATCH /v1/events/{eventId}
+    // PATCH /v1/events/{eventId} (ADMIN ONLY)
     // -------------------------
     if (req.method === "PATCH") {
+      if (!requireAdmin(isAdmin)) {
+        send(context, 403, { error: "Admin only" });
+        return;
+      }
+
       const body = readJsonBody(req);
       if (!body) {
         send(context, 400, { error: "Invalid or missing JSON body" });
         return;
       }
 
-      const q = {
-        query: `
-          SELECT TOP 1 * FROM c
-          WHERE c.hostId = @hostId
-            AND c.eventId = @eventId
-        `,
-        parameters: [
-          { name: "@hostId", value: hostId },
-          { name: "@eventId", value: eventId },
-        ],
-      };
-
-      const { resources } = await events.items.query(q).fetchAll();
-      const current = resources?.[0];
-
+      const current = await loadEvent(true);
       if (!current || current.status === "DELETED") {
         send(context, 404, { error: "Not found" });
         return;
@@ -124,27 +141,18 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     }
 
     // -------------------------
-    // DELETE /v1/events/{eventId}
+    // DELETE /v1/events/{eventId} (ADMIN ONLY)
     // Soft delete event + media + best-effort blob delete
     // -------------------------
     if (req.method === "DELETE") {
+      if (!requireAdmin(isAdmin)) {
+        send(context, 403, { error: "Admin only" });
+        return;
+      }
+
       const media = await getMediaContainer();
 
-      // Find event
-      const eventQuery = {
-        query:
-          "SELECT TOP 1 * FROM c WHERE c.hostId = @hostId AND c.eventId = @eventId",
-        parameters: [
-          { name: "@hostId", value: hostId },
-          { name: "@eventId", value: eventId },
-        ],
-      };
-
-      const { resources: eventDocs } = await events.items
-        .query(eventQuery)
-        .fetchAll();
-
-      const ev = eventDocs?.[0];
+      const ev = await loadEvent(true);
       if (!ev || ev.status === "DELETED") {
         send(context, 404, { error: "Not found" });
         return;

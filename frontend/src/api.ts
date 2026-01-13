@@ -1,14 +1,38 @@
 const BASE = import.meta.env.VITE_API_BASE_URL;
 
+type Session = {
+  userId: string;
+  isAdmin: boolean;
+  adminPasscode?: string; // only stored if entered
+};
+
+function getSession(): Session | null {
+  const raw = localStorage.getItem("emw_session");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as Session;
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const s = getSession();
+  if (!s?.userId) return {}; // allow anonymous until you enforce it server-side
+  const h: Record<string, string> = {
+    "x-user-id": s.userId,
+    "x-admin": String(!!s.isAdmin),
+  };
+  if (s.adminPasscode) h["x-admin-passcode"] = s.adminPasscode;
+  return h;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "x-host-id": "demo-host" },
+    headers: { ...authHeaders() },
   });
 
-  if (!res.ok) {
-    throw new Error(`GET ${path} failed: ${res.status}`);
-  }
-
+  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
   return res.json();
 }
 
@@ -17,15 +41,12 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-host-id": "demo-host",
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    throw new Error(`POST ${path} failed: ${res.status}`);
-  }
-
+  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
   return res.json();
 }
 
@@ -34,27 +55,21 @@ export async function apiPostRaw(path: string, body: any): Promise<any> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-host-id": "demo-host",
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    throw new Error(`POST ${path} failed: ${res.status}`);
-  }
-
+  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
   return res.json();
 }
 
-/**
- * PATCH helper – used for updating events (title, description, etc.)
- */
 export async function apiPatch<T>(path: string, body: any): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
-      "x-host-id": "demo-host",
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
   });
@@ -65,20 +80,14 @@ export async function apiPatch<T>(path: string, body: any): Promise<T> {
   }
 
   const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) {
-    return res.json();
-  }
-
-  // some PATCH handlers return no body
+  if (ct.includes("application/json")) return res.json();
   return undefined as unknown as T;
 }
 
 export async function apiDeleteRaw(path: string) {
   const res = await fetch(`${BASE}${path}`, {
     method: "DELETE",
-    headers: {
-      "x-host-id": "demo-host",
-    },
+    headers: { ...authHeaders() },
   });
 
   if (!res.ok) {

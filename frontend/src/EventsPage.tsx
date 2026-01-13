@@ -12,10 +12,26 @@ type EventDoc = {
   createdAt: string;
 };
 
+function getSession(): { userId?: string; isAdmin?: boolean } | null {
+  try {
+    return JSON.parse(localStorage.getItem("emw_session") || "null");
+  } catch {
+    return null;
+  }
+}
+
+function isAdmin(): boolean {
+  const s = getSession();
+  return !!s?.isAdmin;
+}
+
 export default function EventsPage() {
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const admin = isAdmin();
+  const session = getSession();
 
   // per-event refresh counter (bump after uploads/deletes)
   const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
@@ -48,6 +64,11 @@ export default function EventsPage() {
   }
 
   async function create() {
+    if (!admin) {
+      setError("Admin only: you cannot create events.");
+      return;
+    }
+
     setError(null);
     try {
       await apiPost<EventDoc>("/events", { title });
@@ -59,6 +80,11 @@ export default function EventsPage() {
   }
 
   function startEdit(ev: EventDoc) {
+    if (!admin) {
+      setError("Admin only: you cannot edit events.");
+      return;
+    }
+
     setError(null);
     setEditingEventId(ev.eventId);
     setEditTitle(ev.title);
@@ -73,6 +99,11 @@ export default function EventsPage() {
   }
 
   async function saveEdit(eventId: string) {
+    if (!admin) {
+      setError("Admin only: you cannot edit events.");
+      return;
+    }
+
     setError(null);
 
     if (!editTitle.trim()) {
@@ -90,6 +121,11 @@ export default function EventsPage() {
   }
 
   function requestDelete(ev: EventDoc) {
+    if (!admin) {
+      setError("Admin only: you cannot delete events.");
+      return;
+    }
+
     setError(null);
 
     // if editing, close editing
@@ -103,6 +139,11 @@ export default function EventsPage() {
   }
 
   async function confirmDelete(ev: EventDoc) {
+    if (!admin) {
+      setError("Admin only: you cannot delete events.");
+      return;
+    }
+
     setError(null);
     setDeletingEventId(ev.eventId);
 
@@ -117,6 +158,11 @@ export default function EventsPage() {
     }
   }
 
+  function logout() {
+    localStorage.removeItem("emw_session");
+    window.location.reload();
+  }
+
   useEffect(() => {
     load();
   }, []);
@@ -125,16 +171,60 @@ export default function EventsPage() {
     <div
       style={{ maxWidth: 720, margin: "40px auto", fontFamily: "system-ui" }}
     >
-      <h1>Event Memory Wall</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "center",
+          marginBottom: 10,
+        }}
+      >
+        <h1 style={{ margin: 0 }}>Event Memory Wall</h1>
 
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ fontSize: 12, opacity: 0.75 }}>
+            {session?.userId ? (
+              <>
+                Signed in as <strong>{session.userId}</strong>{" "}
+                <span style={{ opacity: 0.75 }}>
+                  ({admin ? "admin" : "user"})
+                </span>
+              </>
+            ) : (
+              <>Not signed in</>
+            )}
+          </div>
+
+          <button
+            onClick={logout}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #ddd",
+              background: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Log out
+          </button>
+        </div>
+      </div>
+
+      {/* Admin-only create UI */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="New event title"
+          placeholder={admin ? "New event title" : "Admin only: cannot create"}
           style={{ flex: 1, padding: 10 }}
+          disabled={!admin}
         />
-        <button onClick={create} style={{ padding: "10px 14px" }}>
+        <button
+          onClick={create}
+          style={{ padding: "10px 14px" }}
+          disabled={!admin}
+        >
           Create
         </button>
       </div>
@@ -194,8 +284,8 @@ export default function EventsPage() {
                   )}
                 </div>
 
-                {/* Right-side controls */}
-                {!isEditing && !isConfirmingDelete && (
+                {/* Right-side controls — ADMIN ONLY */}
+                {admin && !isEditing && !isConfirmingDelete && (
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       onClick={() => startEdit(ev)}
@@ -225,8 +315,8 @@ export default function EventsPage() {
                   </div>
                 )}
 
-                {/* Edit controls */}
-                {isEditing && (
+                {/* Edit controls — ADMIN ONLY */}
+                {admin && isEditing && (
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       onClick={() => saveEdit(ev.eventId)}
@@ -256,8 +346,8 @@ export default function EventsPage() {
                 )}
               </div>
 
-              {/* Inline delete confirmation row */}
-              {isConfirmingDelete && (
+              {/* Inline delete confirmation row — ADMIN ONLY */}
+              {admin && isConfirmingDelete && (
                 <div
                   style={{
                     marginTop: 10,
@@ -309,7 +399,7 @@ export default function EventsPage() {
                 </div>
               )}
 
-              {/* Upload */}
+              {/* Upload — ALL USERS */}
               <div style={{ marginTop: 12 }}>
                 <UploadMedia
                   eventId={ev.eventId}
@@ -317,7 +407,7 @@ export default function EventsPage() {
                 />
               </div>
 
-              {/* Gallery */}
+              {/* Gallery — ALL USERS (media delete stays available) */}
               <div style={{ marginTop: 12 }}>
                 <MediaGallery
                   eventId={ev.eventId}
