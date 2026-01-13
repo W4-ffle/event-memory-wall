@@ -9,14 +9,28 @@ type MediaDoc = {
   createdAt: string;
 };
 
-type MediaView = MediaDoc & {
-  displayUrl: string; // SAS URL for reading
+type MediaWithDisplayUrl = MediaDoc & {
+  displayUrl: string;
 };
 
+function pickDisplayUrl(sas: any): string | null {
+  if (!sas) return null;
+  return (
+    sas.downloadUrl ||
+    sas.url ||
+    sas.sasUrl ||
+    sas.signedUrl ||
+    sas.readUrl ||
+    sas.blobUrlWithSas ||
+    sas.uploadUrl || // last-resort fallback if your API reused the key name
+    null
+  );
+}
+
 export default function MediaGallery({ eventId }: { eventId: string }) {
-  const [media, setMedia] = useState<MediaView[]>([]);
+  const [media, setMedia] = useState<MediaWithDisplayUrl[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,30 +40,34 @@ export default function MediaGallery({ eventId }: { eventId: string }) {
       setError(null);
 
       try {
-        // 1) Get metadata from Cosmos (your existing endpoint)
+        // 1) Get metadata list from Cosmos (no blob access required)
         const items = await apiGet<MediaDoc[]>(`/events/${eventId}/media`);
 
-        // 2) For each item, ask API for a READ SAS url
-        const withUrls = await Promise.all(
-          items.map(async (m) => {
-            // CHANGE THIS if your endpoint differs:
-            // Expected response: { downloadUrl: string } OR { url: string }
-            const sas = await apiGet<{ downloadUrl?: string; url?: string }>(
+        // 2) For each media item, request a READ-SAS URL from the API
+        const resolved: MediaWithDisplayUrl[] = await Promise.all(
+          (items ?? []).map(async (m) => {
+            // Expected endpoint: /events/{eventId}/media/{mediaId}/sas
+            // If yours is different, change this one line.
+            const sas = await apiGet<any>(
               `/events/${eventId}/media/${m.mediaId}/sas`
             );
 
-            const displayUrl = sas.downloadUrl || sas.url;
+            const displayUrl = pickDisplayUrl(sas);
+
             if (!displayUrl) {
-              throw new Error("SAS response missing downloadUrl/url");
+              const keys = Object.keys(sas ?? {}).join(", ");
+              throw new Error(
+                `SAS response missing downloadUrl/url (mediaId=${m.mediaId}). Keys: ${keys}`
+              );
             }
 
-            return { ...m, displayUrl } as MediaView;
+            return { ...m, displayUrl };
           })
         );
 
-        if (!cancelled) setMedia(withUrls);
+        if (!cancelled) setMedia(resolved);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load media");
+        if (!cancelled) setError(e?.message ?? "Failed to load media.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -61,9 +79,17 @@ export default function MediaGallery({ eventId }: { eventId: string }) {
     };
   }, [eventId]);
 
-  if (loading) return <div>Loading media…</div>;
-  if (error) return <div style={{ color: "red" }}>{error}</div>;
-  if (!media.length) return <div>No media yet.</div>;
+  if (loading) {
+    return <div>Loading media...</div>;
+  }
+
+  if (error) {
+    return <div style={{ color: "red" }}>{error}</div>;
+  }
+
+  if (!media.length) {
+    return <div>No media yet.</div>;
+  }
 
   return (
     <div
@@ -81,6 +107,7 @@ export default function MediaGallery({ eventId }: { eventId: string }) {
               src={m.displayUrl}
               alt={m.fileName}
               style={{ width: "100%", borderRadius: 6 }}
+              loading="lazy"
             />
           ) : (
             <video
@@ -89,6 +116,7 @@ export default function MediaGallery({ eventId }: { eventId: string }) {
               style={{ width: "100%", borderRadius: 6 }}
             />
           )}
+          <div style={{ fontSize: 12, marginTop: 6 }}>{m.fileName}</div>
         </div>
       ))}
     </div>
