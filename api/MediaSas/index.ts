@@ -39,16 +39,23 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     const safeName = String(body.fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
     const blobName = `${hostId}/${eventId}/${Date.now()}_${safeName}`;
 
-    // Your helper returns SAS info (adjust to match what it returns)
-    const sas = await makeUploadSas(blobName);
+    // Returns uploadUrl + blobUrl + expiresOn
+    const sas = makeUploadSas(blobName);
 
     context.res = {
       status: 200,
       headers: { "Content-Type": "application/json" },
       body: {
-        ...sas,
-        blobName,
+        // explicit keys the frontend can rely on
+        uploadUrl: sas.uploadUrl,
+        blobUrl: sas.blobUrl,
+        blobName: sas.blobName,
+        expiresOn: sas.expiresOn,
+
+        // useful metadata
         contentType: body.contentType,
+        eventId,
+        hostId,
       },
     };
   } catch (err: any) {

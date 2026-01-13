@@ -10,6 +10,10 @@ function required(name: string): string {
   return v;
 }
 
+/**
+ * Creates a short-lived SAS upload URL for a single blob.
+ * Returns both uploadUrl (includes SAS) and blobUrl (no SAS).
+ */
 export function makeUploadSas(blobName: string) {
   const accountName = required("STORAGE_ACCOUNT_NAME");
   const accountKey = required("STORAGE_ACCOUNT_KEY");
@@ -29,8 +33,14 @@ export function makeUploadSas(blobName: string) {
     cred
   ).toString();
 
-  const url = `https://${accountName}.blob.core.windows.net/${containerName}/${blobName}?${sas}`;
   const blobUrl = `https://${accountName}.blob.core.windows.net/${containerName}/${blobName}`;
+  const uploadUrl = `${blobUrl}?${sas}`;
 
-  return { url, blobUrl, expiresOn: expiresOn.toISOString() };
+  return {
+    uploadUrl, // what the frontend should PUT to
+    blobUrl, // permanent URL (no SAS)
+    blobName,
+    containerName,
+    expiresOn: expiresOn.toISOString(),
+  };
 }
