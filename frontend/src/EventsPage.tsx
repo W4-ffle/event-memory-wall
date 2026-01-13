@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiGet, apiPost } from "./api";
+import { apiGet, apiPost, apiDeleteRaw } from "./api";
 import UploadMedia from "./UploadMedia";
 import MediaGallery from "./MediaGallery";
 
@@ -32,6 +32,16 @@ export default function EventsPage() {
     try {
       const data = await apiGet<EventDoc[]>("/events");
       setEvents(data);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  async function deleteEvent(eventId: string) {
+    setError(null);
+    try {
+      await apiDeleteRaw(`/events/${eventId}`);
+      await load(); // refresh events list
     } catch (e: any) {
       setError(e.message);
     }
@@ -94,12 +104,27 @@ export default function EventsPage() {
                 display: "flex",
                 justifyContent: "space-between",
                 gap: 10,
+                alignItems: "flex-start",
               }}
             >
               <div>
                 <div style={{ fontWeight: 700 }}>{ev.title}</div>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>{ev.eventId}</div>
               </div>
+
+              <button
+                onClick={() => deleteEvent(ev.eventId)}
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: 6,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  cursor: "pointer",
+                  height: 34,
+                }}
+              >
+                Delete Event
+              </button>
             </div>
 
             <div style={{ marginTop: 12 }}>

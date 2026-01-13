@@ -42,8 +42,12 @@ export default async function (
 
     if (req.method === "GET") {
       const querySpec = {
-        query:
-          "SELECT * FROM c WHERE c.hostId = @hostId ORDER BY c.createdAt DESC",
+        query: `
+    SELECT * FROM c
+    WHERE c.hostId = @hostId
+      AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')
+    ORDER BY c.createdAt DESC
+  `,
         parameters: [{ name: "@hostId", value: hostId }],
       };
 
