@@ -35,11 +35,12 @@ export default async function (
   context.log("Events handler reached - stable");
 
   try {
-    // host header (keep your existing pattern)
     const hostId = getHeader(req as any, "x-host-id") || "demo-host";
 
-    // auth
     const { userId, isAdmin } = getAuth(req);
+
+    // If you want public browsing, remove this.
+    // Right now your design is: must be logged in to see anything.
     if (!requireLogin(userId)) {
       json(context, 401, { error: "Login required" });
       return;
@@ -49,7 +50,7 @@ export default async function (
 
     // -------------------------
     // GET /v1/events
-    // Admin: all events for host
+    // Admin: all host events
     // User: only events where memberIds contains userId
     // -------------------------
     if (req.method === "GET") {
@@ -85,7 +86,6 @@ export default async function (
 
     // -------------------------
     // POST /v1/events (ADMIN ONLY)
-    // Creates event, and makes admin the first member (so it appears in member filter too)
     // -------------------------
     if (req.method === "POST") {
       if (!requireAdmin(isAdmin)) {
@@ -119,7 +119,7 @@ export default async function (
         status: "ACTIVE",
         createdAt: now,
 
-        // ownership/membership
+        // Ownership/membership
         ownerId: userId,
         memberIds: Array.isArray(body.memberIds)
           ? Array.from(new Set([userId, ...body.memberIds.map(String)]))

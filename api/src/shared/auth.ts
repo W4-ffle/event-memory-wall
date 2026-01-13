@@ -1,34 +1,25 @@
 // api/src/shared/auth.ts
 import type { HttpRequest } from "@azure/functions";
 
-/**
- * Robust header getter: works whether headers is a plain object
- * OR a Fetch Headers-like instance with .get().
- */
-export function getHeader(req: any, name: string): string {
-  const headers: any = req?.headers;
-
-  if (!headers) return "";
-
-  // Case 1: Headers-like
-  if (typeof headers.get === "function") {
-    return String(headers.get(name) || "").trim();
-  }
-
-  // Case 2: plain object
-  const h = headers as Record<string, any>;
-  return String(
-    h[name] || h[name.toLowerCase()] || h[name.toUpperCase()] || ""
-  ).trim();
+export function getHeader(req: any, name: string): string | undefined {
+  const headers = (req?.headers ?? {}) as Record<string, any>;
+  return (
+    headers[name] || headers[name.toLowerCase()] || headers[name.toUpperCase()]
+  );
 }
 
 export function getAuth(req: HttpRequest) {
-  const userId = getHeader(req, "x-user-id");
-  const adminPasscode = getHeader(req, "x-admin-passcode");
+  const userId = String(getHeader(req as any, "x-user-id") || "").trim();
+  const adminPasscode = String(
+    getHeader(req as any, "x-admin-passcode") || ""
+  ).trim();
 
-  const envPass = String(process.env.ADMIN_PASSCODE || "").trim();
+  // IMPORTANT: match Azure App Setting name: ADMIN_PASSCODE
+  const expected = String(process.env.ADMIN_PASSCODE || "").trim();
 
-  const isAdmin = !!adminPasscode && !!envPass && adminPasscode === envPass;
+  // Real admin = passcode matches exactly (and env var exists)
+  const isAdmin =
+    !!userId && !!adminPasscode && !!expected && adminPasscode === expected;
 
   return { userId, isAdmin };
 }

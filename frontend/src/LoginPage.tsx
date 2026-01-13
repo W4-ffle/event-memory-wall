@@ -7,13 +7,13 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
   function save() {
     const u = userId.trim();
     if (!u) return alert("Enter a username");
-    const isAdmin = !!adminPasscode.trim();
 
     localStorage.setItem(
       "emw_session",
       JSON.stringify({
         userId: u,
-        isAdmin,
+        // UI hint only; backend will validate passcode
+        isAdmin: !!adminPasscode.trim(),
         adminPasscode: adminPasscode.trim() || undefined,
       })
     );
