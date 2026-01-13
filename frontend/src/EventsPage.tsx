@@ -37,7 +37,12 @@ export default function EventsPage() {
     }
   }
 
-  async function deleteEvent(eventId: string) {
+  async function deleteEvent(eventId: string, title: string) {
+    const ok = window.confirm(
+      `Are you sure you want to delete the event "${title}"?\n\nThis will also remove all associated media.`
+    );
+    if (!ok) return;
+
     setError(null);
     try {
       await apiDeleteRaw(`/events/${eventId}`);
@@ -113,7 +118,7 @@ export default function EventsPage() {
               </div>
 
               <button
-                onClick={() => deleteEvent(ev.eventId)}
+                onClick={() => deleteEvent(ev.eventId, ev.title)}
                 style={{
                   padding: "8px 10px",
                   borderRadius: 6,
