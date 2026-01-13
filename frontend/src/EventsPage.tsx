@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiGet, apiPost, apiDeleteRaw, apiPatch } from "./api";
+import { apiGet, apiPost, apiDeleteRaw } from "./api";
 import UploadMedia from "./UploadMedia";
 import MediaGallery from "./MediaGallery";
 
@@ -17,12 +17,14 @@ export default function EventsPage() {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // media refresh per event
+  // per-event refresh counter (bump after uploads/deletes)
   const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
 
-  // edit state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
+  // inline delete confirmation state
+  const [confirmDeleteEventId, setConfirmDeleteEventId] = useState<
+    string | null
+  >(null);
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
 
   function bumpRefresh(eventId: string) {
     setMediaRefresh((prev) => ({
@@ -44,7 +46,7 @@ export default function EventsPage() {
   async function create() {
     setError(null);
     try {
-      await apiPost("/events", { title });
+      await apiPost<EventDoc>("/events", { title });
       setTitle("");
       await load();
     } catch (e: any) {
@@ -52,31 +54,17 @@ export default function EventsPage() {
     }
   }
 
-  async function deleteEvent(eventId: string) {
+  async function deleteEventConfirmed(ev: EventDoc) {
     setError(null);
-    try {
-      await apiDeleteRaw(`/events/${eventId}`);
-      await load();
-    } catch (e: any) {
-      setError(e.message);
-    }
-  }
-
-  async function saveEdit(eventId: string) {
-    if (!editTitle.trim()) {
-      setError("Title cannot be empty");
-      return;
-    }
+    setDeletingEventId(ev.eventId);
 
     try {
-      await apiPatch(`/events/${eventId}`, {
-        title: editTitle.trim(),
-      });
-
-      setEditingId(null);
-      setEditTitle("");
+      await apiDeleteRaw(`/events/${ev.eventId}`);
+      setConfirmDeleteEventId(null);
+      setDeletingEventId(null);
       await load();
     } catch (e: any) {
+      setDeletingEventId(null);
       setError(e.message);
     }
   }
@@ -113,7 +101,8 @@ export default function EventsPage() {
 
       <div style={{ display: "grid", gap: 18 }}>
         {events.map((ev) => {
-          const isEditing = editingId === ev.eventId;
+          const isConfirming = confirmDeleteEventId === ev.eventId;
+          const isDeleting = deletingEventId === ev.eventId;
 
           return (
             <div
@@ -130,54 +119,66 @@ export default function EventsPage() {
                   display: "flex",
                   justifyContent: "space-between",
                   gap: 10,
+                  alignItems: "center",
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  {!isEditing ? (
-                    <>
-                      <div style={{ fontWeight: 700 }}>{ev.title}</div>
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>
-                        {ev.eventId}
-                      </div>
-                    </>
-                  ) : (
-                    <input
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      style={{ width: "100%", padding: 8 }}
-                    />
-                  )}
+                <div>
+                  <div style={{ fontWeight: 700 }}>{ev.title}</div>
+                  <div style={{ fontSize: 12, opacity: 0.7 }}>{ev.eventId}</div>
                 </div>
 
-                <div style={{ display: "flex", gap: 6 }}>
-                  {!isEditing ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          setEditingId(ev.eventId);
-                          setEditTitle(ev.title);
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button onClick={() => deleteEvent(ev.eventId)}>
-                        Delete Event
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => saveEdit(ev.eventId)}>Save</button>
-                      <button
-                        onClick={() => {
-                          setEditingId(null);
-                          setEditTitle("");
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                </div>
+                {!isConfirming ? (
+                  <button
+                    onClick={() => setConfirmDeleteEventId(ev.eventId)}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #ddd",
+                      background: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Delete Event
+                  </button>
+                ) : (
+                  <div
+                    style={{ display: "flex", gap: 8, alignItems: "center" }}
+                  >
+                    <span style={{ fontSize: 12, opacity: 0.8 }}>
+                      Delete this event and all its media?
+                    </span>
+
+                    <button
+                      onClick={() => setConfirmDeleteEventId(null)}
+                      disabled={isDeleting}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        cursor: isDeleting ? "not-allowed" : "pointer",
+                        opacity: isDeleting ? 0.6 : 1,
+                      }}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      onClick={() => deleteEventConfirmed(ev)}
+                      disabled={isDeleting}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        cursor: isDeleting ? "not-allowed" : "pointer",
+                        opacity: isDeleting ? 0.6 : 1,
+                      }}
+                    >
+                      {isDeleting ? "Deleting..." : "Confirm delete"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div style={{ marginTop: 12 }}>
