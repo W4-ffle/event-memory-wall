@@ -1,60 +1,105 @@
-import { HttpRequest, InvocationContext } from "@azure/functions";
-import { json, badRequest, serverError } from "../src/shared/http";
+import { HttpRequest } from "@azure/functions";
+import { randomUUID } from "crypto";
 import { getMediaContainer } from "../src/shared/cosmos";
 
-export default async function (req: HttpRequest, context: InvocationContext) {
+function header(req: any, name: string) {
+  const h = (req?.headers ?? {}) as Record<string, any>;
+  return h[name] || h[name.toLowerCase()] || h[name.toUpperCase()];
+}
+
+export default async function (context: any, req: HttpRequest): Promise<void> {
+  context.log("media handler reached");
+
   try {
-    const hostId = req.headers.get("x-host-id") || "demo-host";
-    const eventId = (context as any)?.bindingData?.eventId;
-
+    const eventId = context?.bindingData?.eventId;
     if (!eventId) {
-      badRequest(context, "Missing eventId in route");
+      context.res = { status: 400, body: { error: "eventId is required" } };
       return;
     }
 
-    if (req.method !== "POST") {
-      json(context, 405, { error: "Method not allowed" });
-      return;
-    }
-
-    let body: any;
-    try {
-      body = await req.json();
-    } catch {
-      badRequest(context, "Invalid or missing JSON body");
-      return;
-    }
-
-    const { mediaId, blobUrl, type, fileName, contentType, size } = body || {};
-
-    if (!mediaId || !blobUrl) {
-      badRequest(context, "mediaId and blobUrl are required");
-      return;
-    }
-
+    const hostId = header(req, "x-host-id") || "demo-host";
     const container = await getMediaContainer();
-    const now = new Date().toISOString();
 
-    const doc = {
-      id: mediaId,
-      mediaId,
-      eventId,
-      hostId,
-      blobUrl,
-      type: type || "IMAGE",
-      fileName: fileName || null,
-      contentType: contentType || null,
-      size: typeof size === "number" ? size : null,
-      createdAt: now,
-      status: "ACTIVE",
-    };
+    // GET: list media for an event
+    if (req.method === "GET") {
+      const querySpec = {
+        query:
+          "SELECT * FROM c WHERE c.hostId = @hostId AND c.eventId = @eventId ORDER BY c.createdAt DESC",
+        parameters: [
+          { name: "@hostId", value: hostId },
+          { name: "@eventId", value: eventId },
+        ],
+      };
 
-    await container.items.create(doc);
+      const { resources } = await container.items.query(querySpec).fetchAll();
 
-    json(context, 201, doc);
+      context.res = {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: resources ?? [],
+      };
+      return;
+    }
+
+    // POST: save metadata after successful blob upload
+    if (req.method === "POST") {
+      let body: any;
+      try {
+        body = (req as any).body;
+        if (typeof body === "string") body = JSON.parse(body);
+      } catch {
+        context.res = { status: 400, body: { error: "Invalid JSON body" } };
+        return;
+      }
+
+      if (!body?.blobUrl || !body?.fileName) {
+        context.res = {
+          status: 400,
+          body: { error: "blobUrl and fileName are required" },
+        };
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const mediaId = body.mediaId || `media_${randomUUID()}`;
+
+      const doc = {
+        id: mediaId, // Cosmos id
+        mediaId, // app id
+        hostId,
+        eventId,
+        uploaderId: body.uploaderId || "anonymous",
+        blobUrl: body.blobUrl,
+        type: body.type || "IMAGE",
+        fileName: body.fileName,
+        contentType: body.contentType || "application/octet-stream",
+        size: body.size || 0,
+        status: "ACTIVE",
+        createdAt: now,
+      };
+
+      await container.items.create(doc);
+
+      context.res = {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+        body: doc,
+      };
+      return;
+    }
+
+    context.res = { status: 405, body: { error: "Method not allowed" } };
   } catch (err: any) {
-    context.log("Media error:", err?.message);
+    context.log("MEDIA FAILED:", err?.message);
     context.log(err?.stack);
-    serverError(context, err);
+
+    context.res = {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: {
+        error: "Internal server error",
+        message: err?.message ?? "Unknown error",
+      },
+    };
   }
 }
