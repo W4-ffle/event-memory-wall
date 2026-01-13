@@ -332,7 +332,7 @@ export default function EventsPage() {
     setDeletingEventId(ev.eventId);
 
     try {
-      await apiDeleteRaw(`/events/${ev.eventId}`);
+      await apiDeleteRaw(`/events/${ev.eventId}/delete`);
       setDeletingEventId(null);
       setConfirmDeleteEventId(null);
 
