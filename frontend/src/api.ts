@@ -126,3 +126,19 @@ export async function apiDeleteRaw(path: string) {
   if (ct.includes("application/json")) return res.json();
   return res.text();
 }
+
+export async function apiPostRawNoBody(path: string): Promise<any> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`POST ${path} failed: ${res.status} ${text}`);
+  }
+
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
+  return res.text();
+}

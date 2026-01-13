@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiDeleteRaw, apiPatch } from "./api";
 import UploadMedia from "./UploadMedia";
 import MediaGallery from "./MediaGallery";
+import MembersPanel from "./MembersPanel";
 
 type EventDoc = {
   id: string;
@@ -11,9 +12,9 @@ type EventDoc = {
   description?: string;
   createdAt: string;
 
-  // ✅ membership fields (may be absent on older docs)
   ownerId?: string;
   memberIds?: string[];
+  status?: string;
 };
 
 function getSession(): { userId?: string; isAdmin?: boolean } | null {
@@ -40,15 +41,6 @@ function uniqueStrings(xs: any[]): string[] {
   );
 }
 
-function parseMemberInput(s: string): string[] {
-  // allow comma/space/newline separated
-  const tokens = s
-    .split(/[\n, ]+/g)
-    .map((x) => x.trim())
-    .filter(Boolean);
-  return uniqueStrings(tokens);
-}
-
 export default function EventsPage() {
   const [events, setEvents] = useState<EventDoc[]>([]);
   const [title, setTitle] = useState("");
@@ -57,6 +49,11 @@ export default function EventsPage() {
   const admin = isAdmin();
   const session = getSession();
 
+  const myUserId = useMemo(
+    () => String(session?.userId || "").trim(),
+    [session?.userId]
+  );
+
   // per-event refresh counter (bump after uploads/deletes)
   const [mediaRefresh, setMediaRefresh] = useState<Record<string, number>>({});
 
@@ -64,28 +61,34 @@ export default function EventsPage() {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
-  // ---------- Membership UI state (admin only) ----------
-  const [editingMembersEventId, setEditingMembersEventId] = useState<
-    string | null
-  >(null);
-  const [membersInput, setMembersInput] = useState("");
-  const [savingMembersEventId, setSavingMembersEventId] = useState<
-    string | null
-  >(null);
-
   // ---------- Inline delete confirmation state ----------
   const [confirmDeleteEventId, setConfirmDeleteEventId] = useState<
     string | null
   >(null);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
 
-  const myUserId = useMemo(() => session?.userId || "", [session?.userId]);
-
   function bumpRefresh(eventId: string) {
     setMediaRefresh((prev) => ({
       ...prev,
       [eventId]: (prev[eventId] ?? 0) + 1,
     }));
+  }
+
+  function updateEventMembers(eventId: string, nextMembers: string[]) {
+    const cleaned = uniqueStrings(nextMembers);
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.eventId === eventId ? { ...e, memberIds: cleaned } : e
+      )
+    );
+  }
+
+  function canManageMembers(ev: EventDoc): boolean {
+    if (!myUserId) return false;
+    if (admin) return true;
+
+    const members = uniqueStrings(ev.memberIds ?? []);
+    return members.includes(myUserId);
   }
 
   async function load() {
@@ -99,7 +102,7 @@ export default function EventsPage() {
   }
 
   async function create() {
-    if (!session?.userId) {
+    if (!myUserId) {
       setError("You must be signed in to create an event.");
       return;
     }
@@ -124,9 +127,8 @@ export default function EventsPage() {
     setEditingEventId(ev.eventId);
     setEditTitle(ev.title);
 
-    // close other panels
+    // close delete confirm if open
     setConfirmDeleteEventId(null);
-    setEditingMembersEventId(null);
   }
 
   function cancelEdit() {
@@ -156,61 +158,6 @@ export default function EventsPage() {
     }
   }
 
-  // --------- Members UI ----------
-  function startEditMembers(ev: EventDoc) {
-    if (!admin) {
-      setError("Admin only: you cannot edit members.");
-      return;
-    }
-    setError(null);
-
-    // close other panels
-    cancelEdit();
-    setConfirmDeleteEventId(null);
-
-    setEditingMembersEventId(ev.eventId);
-
-    const currentMembers = uniqueStrings(ev.memberIds ?? []);
-    // show as comma separated
-    setMembersInput(currentMembers.join(", "));
-  }
-
-  function cancelEditMembers() {
-    setEditingMembersEventId(null);
-    setMembersInput("");
-  }
-
-  async function saveMembers(ev: EventDoc) {
-    if (!admin) {
-      setError("Admin only: you cannot edit members.");
-      return;
-    }
-
-    setError(null);
-    setSavingMembersEventId(ev.eventId);
-
-    try {
-      const next = parseMemberInput(membersInput);
-
-      // Ensure owner/admin is included server-side too, but we keep UX helpful:
-      // include current ownerId if present; include current admin userId if missing
-      const merged = uniqueStrings([
-        ...(ev.ownerId ? [ev.ownerId] : []),
-        ...(myUserId ? [myUserId] : []),
-        ...next,
-      ]);
-
-      await apiPatch(`/events/${ev.eventId}`, { memberIds: merged });
-
-      setSavingMembersEventId(null);
-      cancelEditMembers();
-      await load();
-    } catch (e: any) {
-      setSavingMembersEventId(null);
-      setError(e.message);
-    }
-  }
-
   // --------- Delete event ----------
   function requestDelete(ev: EventDoc) {
     if (!admin) {
@@ -219,8 +166,9 @@ export default function EventsPage() {
     }
 
     setError(null);
+
+    // if editing, close editing
     cancelEdit();
-    setEditingMembersEventId(null);
 
     setConfirmDeleteEventId(ev.eventId);
   }
@@ -302,21 +250,19 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Admin-only create UI */}
+      {/* Create event (signed-in users can create) */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder={
-            session?.userId ? "New event title" : "Sign in to create"
-          }
+          placeholder={myUserId ? "New event title" : "Sign in to create"}
           style={{ flex: 1, padding: 10 }}
-          disabled={!session?.userId}
+          disabled={!myUserId}
         />
         <button
           onClick={create}
           style={{ padding: "10px 14px" }}
-          disabled={!session?.userId}
+          disabled={!myUserId}
         >
           Create
         </button>
@@ -336,13 +282,11 @@ export default function EventsPage() {
           const isConfirmingDelete = confirmDeleteEventId === ev.eventId;
           const isDeleting = deletingEventId === ev.eventId;
 
-          const isEditingMembers = editingMembersEventId === ev.eventId;
-          const isSavingMembers = savingMembersEventId === ev.eventId;
-
+          const membersClean = uniqueStrings(ev.memberIds ?? []);
           const memberLabel =
-            uniqueStrings(ev.memberIds ?? [])
-              .slice(0, 6)
-              .join(", ") || "(none set)";
+            membersClean.slice(0, 6).join(", ") || "(none set)";
+
+          const canManage = canManageMembers(ev);
 
           return (
             <div
@@ -370,14 +314,14 @@ export default function EventsPage() {
                       <div style={{ fontSize: 12, opacity: 0.7 }}>
                         {ev.eventId}
                       </div>
-                      {admin && (
+
+                      {/* Show a compact members line (useful for admin + members) */}
+                      {membersClean.length > 0 && (
                         <div
                           style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}
                         >
                           Members: {memberLabel}
-                          {uniqueStrings(ev.memberIds ?? []).length > 6
-                            ? " …"
-                            : ""}
+                          {membersClean.length > 6 ? " …" : ""}
                         </div>
                       )}
                     </>
@@ -396,51 +340,35 @@ export default function EventsPage() {
                 </div>
 
                 {/* Right-side controls — ADMIN ONLY */}
-                {admin &&
-                  !isEditing &&
-                  !isConfirmingDelete &&
-                  !isEditingMembers && (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        onClick={() => startEditMembers(ev)}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid #ddd",
-                          background: "#fff",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Members
-                      </button>
+                {admin && !isEditing && !isConfirmingDelete && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => startEdit(ev)}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit
+                    </button>
 
-                      <button
-                        onClick={() => startEdit(ev)}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid #ddd",
-                          background: "#fff",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        onClick={() => requestDelete(ev)}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          border: "1px solid #ddd",
-                          background: "#fff",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Delete Event
-                      </button>
-                    </div>
-                  )}
+                    <button
+                      onClick={() => requestDelete(ev)}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #ddd",
+                        background: "#fff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Delete Event
+                    </button>
+                  </div>
+                )}
 
                 {/* Edit controls — ADMIN ONLY */}
                 {admin && isEditing && (
@@ -473,65 +401,15 @@ export default function EventsPage() {
                 )}
               </div>
 
-              {/* Members editor — ADMIN ONLY */}
-              {admin && isEditingMembers && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 10,
-                    border: "1px solid #eee",
-                    background: "#fafafa",
-                    borderRadius: 10,
-                  }}
-                >
-                  <div style={{ fontSize: 13, marginBottom: 8 }}>
-                    Edit members for <strong>{ev.title}</strong>
-                    <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-                      Enter usernames separated by comma, space, or newline.
-                      Members can upload/view/delete media. Only admins can
-                      edit/delete events.
-                    </div>
-                  </div>
-
-                  <textarea
-                    value={membersInput}
-                    onChange={(e) => setMembersInput(e.target.value)}
-                    rows={3}
-                    style={{ width: "100%", padding: 10, borderRadius: 8 }}
-                    placeholder="e.g. alice, bob, charlie"
-                  />
-
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button
-                      onClick={cancelEditMembers}
-                      disabled={isSavingMembers}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: isSavingMembers ? "not-allowed" : "pointer",
-                        opacity: isSavingMembers ? 0.6 : 1,
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => saveMembers(ev)}
-                      disabled={isSavingMembers}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: isSavingMembers ? "not-allowed" : "pointer",
-                        opacity: isSavingMembers ? 0.6 : 1,
-                      }}
-                    >
-                      {isSavingMembers ? "Saving..." : "Save members"}
-                    </button>
-                  </div>
-                </div>
+              {/* Members panel — visible if you are admin OR a member (backend enforces too) */}
+              {(admin || canManage) && (
+                <MembersPanel
+                  eventId={ev.eventId}
+                  members={membersClean}
+                  ownerId={ev.ownerId}
+                  canManage={canManage} // member or admin
+                  onChanged={(next) => updateEventMembers(ev.eventId, next)}
+                />
               )}
 
               {/* Inline delete confirmation row — ADMIN ONLY */}
@@ -587,7 +465,7 @@ export default function EventsPage() {
                 </div>
               )}
 
-              {/* Upload — ALL USERS (but backend will enforce membership now) */}
+              {/* Upload — ALL USERS (backend enforces membership) */}
               <div style={{ marginTop: 12 }}>
                 <UploadMedia
                   eventId={ev.eventId}
@@ -595,7 +473,7 @@ export default function EventsPage() {
                 />
               </div>
 
-              {/* Gallery — ALL USERS (but backend enforces membership for read SAS, list, delete) */}
+              {/* Gallery — ALL USERS (backend enforces membership for list/read/delete) */}
               <div style={{ marginTop: 12 }}>
                 <MediaGallery
                   eventId={ev.eventId}
