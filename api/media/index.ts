@@ -20,11 +20,16 @@ export default async function (context: any, req: HttpRequest): Promise<void> {
     const hostId = header(req, "x-host-id") || "demo-host";
     const container = await getMediaContainer();
 
-    // GET: list media for an event
+    // GET: list media for an event (FILTER OUT SOFT-DELETED)
     if (req.method === "GET") {
       const querySpec = {
-        query:
-          "SELECT * FROM c WHERE c.hostId = @hostId AND c.eventId = @eventId ORDER BY c.createdAt DESC",
+        query: `
+          SELECT * FROM c
+          WHERE c.hostId = @hostId
+            AND c.eventId = @eventId
+            AND (NOT IS_DEFINED(c.status) OR c.status != 'DELETED')
+          ORDER BY c.createdAt DESC
+        `,
         parameters: [
           { name: "@hostId", value: hostId },
           { name: "@eventId", value: eventId },
