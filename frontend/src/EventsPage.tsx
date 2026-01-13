@@ -335,9 +335,16 @@ export default function EventsPage() {
   return (
     <div
       style={{
+        // FULL VIEWPORT (prevents parent wrappers from constraining width/height)
+        position: "fixed",
+        inset: 0,
+        width: "100vw",
+        height: "100vh",
+        overflow: "auto",
+
         fontFamily: "system-ui",
-        minHeight: "100vh",
-        background: "#fff",
+        background: "#f7f7f8", // subtle off-white
+        color: "#111827",
       }}
     >
       {/* Fixed top navbar */}
@@ -348,8 +355,8 @@ export default function EventsPage() {
           left: 0,
           right: 0,
           height: navbarHeight,
-          borderBottom: "1px solid #eee",
-          background: "#fff",
+          borderBottom: "1px solid #e5e7eb",
+          background: "#f7f7f8",
           zIndex: 50,
         }}
       >
@@ -361,6 +368,7 @@ export default function EventsPage() {
             alignItems: "center",
             justifyContent: "space-between",
             gap: 16,
+            boxSizing: "border-box",
           }}
         >
           <div style={{ fontSize: 20, fontWeight: 800 }}>Memory Wall</div>
@@ -384,7 +392,7 @@ export default function EventsPage() {
               style={{
                 padding: "10px 12px",
                 borderRadius: 10,
-                border: "1px solid #ddd",
+                border: "1px solid #d1d5db",
                 background: "#fff",
                 cursor: "pointer",
                 fontWeight: 600,
@@ -424,7 +432,7 @@ export default function EventsPage() {
 
       {/* Main content uses full screen width */}
       <div style={{ paddingTop: navbarHeight }}>
-        <div style={{ padding: "24px" }}>
+        <div style={{ padding: "24px", boxSizing: "border-box" }}>
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 18, fontWeight: 800 }}>Your Events</div>
             <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
@@ -472,7 +480,7 @@ export default function EventsPage() {
                   onClick={() => setSelectedEventId(ev.eventId)}
                   style={{
                     textAlign: "left",
-                    border: isSelected ? "2px solid #111" : "1px solid #eee",
+                    border: isSelected ? "2px solid #111" : "1px solid #e5e7eb",
                     background: "#fff",
                     borderRadius: 14,
                     overflow: "hidden",
@@ -562,7 +570,7 @@ export default function EventsPage() {
               <div
                 style={{
                   padding: 16,
-                  border: "1px solid #eee",
+                  border: "1px solid #e5e7eb",
                   borderRadius: 14,
                   background: "#fff",
                 }}
@@ -593,7 +601,8 @@ export default function EventsPage() {
                             padding: 10,
                             marginTop: 8,
                             borderRadius: 10,
-                            border: "1px solid #ddd",
+                            border: "1px solid #d1d5db",
+                            outline: "none",
                           }}
                         />
                       </>
@@ -609,7 +618,7 @@ export default function EventsPage() {
                           style={{
                             padding: "8px 12px",
                             borderRadius: 10,
-                            border: "1px solid #ddd",
+                            border: "1px solid #d1d5db",
                             background: "#fff",
                             cursor: "pointer",
                             fontWeight: 600,
@@ -623,7 +632,7 @@ export default function EventsPage() {
                           style={{
                             padding: "8px 12px",
                             borderRadius: 10,
-                            border: "1px solid #ddd",
+                            border: "1px solid #d1d5db",
                             background: "#fff",
                             cursor: "pointer",
                             fontWeight: 600,
@@ -641,7 +650,7 @@ export default function EventsPage() {
                         style={{
                           padding: "8px 12px",
                           borderRadius: 10,
-                          border: "1px solid #ddd",
+                          border: "1px solid #d1d5db",
                           background: "#fff",
                           cursor: "pointer",
                           fontWeight: 600,
@@ -654,7 +663,7 @@ export default function EventsPage() {
                         style={{
                           padding: "8px 12px",
                           borderRadius: 10,
-                          border: "1px solid #ddd",
+                          border: "1px solid #d1d5db",
                           background: "#fff",
                           cursor: "pointer",
                           fontWeight: 600,
@@ -710,7 +719,7 @@ export default function EventsPage() {
                         style={{
                           padding: "8px 12px",
                           borderRadius: 10,
-                          border: "1px solid #ddd",
+                          border: "1px solid #d1d5db",
                           background: "#fff",
                           cursor:
                             deletingEventId === selectedEvent.eventId
@@ -729,7 +738,7 @@ export default function EventsPage() {
                         style={{
                           padding: "8px 12px",
                           borderRadius: 10,
-                          border: "1px solid #ddd",
+                          border: "1px solid #d1d5db",
                           background: "#fff",
                           cursor:
                             deletingEventId === selectedEvent.eventId
@@ -811,7 +820,7 @@ export default function EventsPage() {
                 style={{
                   padding: "8px 10px",
                   borderRadius: 10,
-                  border: "1px solid #ddd",
+                  border: "1px solid #d1d5db",
                   background: "#fff",
                   cursor: "pointer",
                   fontWeight: 600,
@@ -835,7 +844,7 @@ export default function EventsPage() {
                 width: "100%",
                 padding: 12,
                 borderRadius: 12,
-                border: "1px solid #ddd",
+                border: "1px solid #d1d5db",
                 outline: "none",
               }}
               onKeyDown={(e) => {
@@ -858,7 +867,7 @@ export default function EventsPage() {
                 style={{
                   padding: "10px 12px",
                   borderRadius: 10,
-                  border: "1px solid #ddd",
+                  border: "1px solid #d1d5db",
                   background: "#fff",
                   cursor: creating ? "not-allowed" : "pointer",
                   opacity: creating ? 0.7 : 1,
