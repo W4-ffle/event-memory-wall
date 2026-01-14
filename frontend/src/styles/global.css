@@ -679,3 +679,142 @@ html.emw-dark {
   gap: 10px;
   margin-top: 14px;
 }
+
+/* ==============================
+   Lightbox (Media viewer)
+============================== */
+
+.emw-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200; /* above navbar/modal */
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.emw-lightboxInner {
+  position: relative;
+  width: min(1100px, 96vw);
+  height: min(720px, 84vh);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.emw-lightboxStage {
+  position: absolute;
+  inset: 0;
+  padding: 56px 64px 56px 64px; /* space for close + arrows + caption */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emw-lightboxMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.emw-lightboxClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.emw-lightboxNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 64px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+  font-size: 34px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.emw-lightboxPrev {
+  left: 12px;
+}
+
+.emw-lightboxNext {
+  right: 12px;
+}
+
+.emw-lightboxCaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px;
+  background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.55));
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.emw-lightboxCaptionName {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emw-lightboxCaptionMeta {
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+/* Make the thumbnail clickable without button chrome */
+.emw-mediaThumbBtn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+}
+
+/* Mobile tweaks */
+@media (max-width: 640px) {
+  .emw-lightboxInner {
+    width: 96vw;
+    height: 80vh;
+  }
+  .emw-lightboxStage {
+    padding: 56px 52px 56px 52px;
+  }
+  .emw-lightboxNav {
+    width: 40px;
+    height: 58px;
+    font-size: 30px;
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiDeleteRaw } from "./api";
 
 type MediaDoc = {
@@ -39,6 +39,42 @@ export default function MediaGallery({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
+
+  // Touch/swipe tracking
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const hasMedia = media.length > 0;
+
+  const activeItem = useMemo(() => {
+    if (!hasMedia) return null;
+    const idx = Math.min(Math.max(activeIndex, 0), media.length - 1);
+    return media[idx] ?? null;
+  }, [activeIndex, hasMedia, media]);
+
+  function openAt(index: number) {
+    if (!media.length) return;
+    setActiveIndex(Math.min(Math.max(index, 0), media.length - 1));
+    setLightboxOpen(true);
+  }
+
+  function closeLightbox() {
+    setLightboxOpen(false);
+  }
+
+  function next() {
+    if (!media.length) return;
+    setActiveIndex((i) => (i + 1) % media.length);
+  }
+
+  function prev() {
+    if (!media.length) return;
+    setActiveIndex((i) => (i - 1 + media.length) % media.length);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +119,29 @@ export default function MediaGallery({
     };
   }, [eventId, refreshKey]);
 
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") prev();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    // Optional: prevent page scroll while open
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightboxOpen, media.length]);
+
   async function onDelete(mediaId: string) {
     setError(null);
     setDeleting(mediaId);
@@ -90,6 +149,8 @@ export default function MediaGallery({
     try {
       await apiDeleteRaw(`/events/${eventId}/media/${mediaId}`);
       onDeleted?.();
+      // If lightbox open and item deleted, close (simple + safe)
+      if (lightboxOpen) setLightboxOpen(false);
     } catch (e: any) {
       setError(e?.message ?? "Delete failed.");
     } finally {
@@ -97,37 +158,139 @@ export default function MediaGallery({
     }
   }
 
+  function onBackdropMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    // Only close if clicking the backdrop itself
+    if (e.target === e.currentTarget) closeLightbox();
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartX.current = t.clientX;
+    touchStartY.current = t.clientY;
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    const startX = touchStartX.current;
+    const startY = touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+
+    const t = e.changedTouches[0];
+    if (!t || startX == null || startY == null) return;
+
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+
+    // Basic guard: must be mostly horizontal swipe
+    if (Math.abs(dx) < 50) return;
+    if (Math.abs(dy) > 80) return;
+
+    if (dx < 0) next();
+    else prev();
+  }
+
   if (loading) return <div className="emw-muted">Loading media...</div>;
   if (error) return <div className="emw-errorText">{error}</div>;
   if (!media.length) return <div className="emw-muted">No media yet.</div>;
 
   return (
-    <div className="emw-mediaGrid">
-      {media.map((m) => (
-        <div key={m.mediaId} className="emw-mediaCard">
-          <div className="emw-mediaThumb">
-            {m.type === "IMAGE" ? (
-              <img
-                src={m.displayUrl}
-                alt=""
-                className="emw-mediaFill"
-                loading="lazy"
-              />
-            ) : (
-              <video src={m.displayUrl} controls className="emw-mediaFill" />
-            )}
-          </div>
+    <>
+      <div className="emw-mediaGrid">
+        {media.map((m, idx) => (
+          <div key={m.mediaId} className="emw-mediaCard">
+            <button
+              type="button"
+              className="emw-mediaThumb emw-mediaThumbBtn"
+              onClick={() => openAt(idx)}
+              title="View"
+            >
+              {m.type === "IMAGE" ? (
+                <img
+                  src={m.displayUrl}
+                  alt={m.fileName || ""}
+                  className="emw-mediaFill"
+                  loading="lazy"
+                />
+              ) : (
+                <video src={m.displayUrl} className="emw-mediaFill" />
+              )}
+            </button>
 
-          <button
-            onClick={() => onDelete(m.mediaId)}
-            disabled={deleting === m.mediaId}
-            className="emw-btn emw-btn-ghost emw-btn-block"
-            data-disabled={deleting === m.mediaId ? "true" : "false"}
+            <button
+              onClick={() => onDelete(m.mediaId)}
+              disabled={deleting === m.mediaId}
+              className="emw-btn emw-btn-ghost emw-btn-block"
+              data-disabled={deleting === m.mediaId ? "true" : "false"}
+            >
+              {deleting === m.mediaId ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Lightbox */}
+      {lightboxOpen && activeItem && (
+        <div className="emw-lightbox" onMouseDown={onBackdropMouseDown}>
+          <div
+            className="emw-lightboxInner"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
           >
-            {deleting === m.mediaId ? "Deleting..." : "Delete"}
-          </button>
+            <button
+              className="emw-lightboxClose"
+              onClick={closeLightbox}
+              aria-label="Close"
+              type="button"
+            >
+              ✕
+            </button>
+
+            <button
+              className="emw-lightboxNav emw-lightboxPrev"
+              onClick={prev}
+              aria-label="Previous"
+              type="button"
+            >
+              ‹
+            </button>
+
+            <div className="emw-lightboxStage">
+              {activeItem.type === "IMAGE" ? (
+                <img
+                  src={activeItem.displayUrl}
+                  alt={activeItem.fileName || ""}
+                  className="emw-lightboxMedia"
+                />
+              ) : (
+                <video
+                  src={activeItem.displayUrl}
+                  controls
+                  className="emw-lightboxMedia"
+                />
+              )}
+            </div>
+
+            <button
+              className="emw-lightboxNav emw-lightboxNext"
+              onClick={next}
+              aria-label="Next"
+              type="button"
+            >
+              ›
+            </button>
+
+            <div className="emw-lightboxCaption">
+              <div className="emw-lightboxCaptionName">
+                {activeItem.fileName || "Media"}
+              </div>
+              <div className="emw-lightboxCaptionMeta">
+                {activeIndex + 1} / {media.length}
+              </div>
+            </div>
+          </div>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }
