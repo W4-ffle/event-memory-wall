@@ -363,50 +363,18 @@ export default function EventsPage() {
   const navbarHeight = 64;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        width: "100vw",
-        height: "100vh",
-        overflow: "auto",
-        fontFamily: "system-ui",
-        background: "#f7f7f8",
-        color: "#111827",
-      }}
-    >
+    <div className="emw-shell">
       {/* Fixed top navbar */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: navbarHeight,
-          borderBottom: "1px solid #e5e7eb",
-          background: "#f7f7f8",
-          zIndex: 50,
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-            boxSizing: "border-box",
-          }}
-        >
-          <div style={{ fontSize: 20, fontWeight: 800 }}>Memory Wall</div>
+      <div className="emw-navbar" style={{ height: navbarHeight }}>
+        <div className="emw-navbar-inner">
+          <div className="emw-brand">Memory Wall</div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ fontSize: 12, opacity: 0.75 }}>
+          <div className="emw-navbar-actions">
+            <div className="emw-session">
               {session?.userId ? (
                 <>
                   Signed in as <strong>{session.userId}</strong>{" "}
-                  <span style={{ opacity: 0.75 }}>
+                  <span className="emw-session-role">
                     ({admin ? "admin" : "user"})
                   </span>
                 </>
@@ -415,17 +383,7 @@ export default function EventsPage() {
               )}
             </div>
 
-            <button
-              onClick={logout}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #d1d5db",
-                background: "#fff",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
-            >
+            <button onClick={logout} className="emw-btn">
               Log out
             </button>
 
@@ -438,20 +396,9 @@ export default function EventsPage() {
                 }
                 setCreateOpen(true);
               }}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px solid #111",
-                background: "#0b0b1a",
-                color: "#fff",
-                cursor: "pointer",
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
+              className="emw-btn emw-btn-primary"
             >
-              <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
+              <span className="emw-btn-plus">+</span>
               Create Event
             </button>
           </div>
@@ -459,39 +406,19 @@ export default function EventsPage() {
       </div>
 
       {/* Main content */}
-      <div style={{ paddingTop: navbarHeight }}>
-        <div style={{ padding: "24px", boxSizing: "border-box" }}>
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>Your Events</div>
-            <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
+      <div className="emw-main" style={{ paddingTop: navbarHeight }}>
+        <div className="emw-page">
+          <div className="emw-page-head">
+            <div className="emw-h1">Your Events</div>
+            <div className="emw-subtitle">
               Browse and share photos from your memorable events
             </div>
           </div>
 
-          {error && (
-            <div
-              style={{
-                padding: 12,
-                background: "#fee",
-                marginBottom: 14,
-                borderRadius: 10,
-                border: "1px solid #f5caca",
-                maxWidth: 900,
-              }}
-            >
-              {error}
-            </div>
-          )}
+          {error && <div className="emw-error">{error}</div>}
 
           {/* Cards grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: 18,
-              width: "100%",
-            }}
-          >
+          <div className="emw-grid">
             {events.map((ev) => {
               const meta = cardMeta[ev.eventId];
               const cover = meta?.coverUrl;
@@ -506,84 +433,29 @@ export default function EventsPage() {
                 <button
                   key={ev.id}
                   onClick={() => setSelectedEventId(ev.eventId)}
-                  style={{
-                    textAlign: "left",
-                    border: isSelected ? "2px solid #111" : "1px solid #e5e7eb",
-                    background: "#fff",
-                    borderRadius: 14,
-                    overflow: "hidden",
-                    padding: 0,
-                    cursor: "pointer",
-                    boxShadow: "0 1px 0 rgba(0,0,0,0.02)",
-                  }}
+                  className={`emw-card ${isSelected ? "is-selected" : ""}`}
                 >
-                  <div
-                    style={{
-                      position: "relative",
-                      height: 190,
-                      background: "#f3f3f3",
-                    }}
-                  >
+                  <div className="emw-card-media">
                     {cover ? (
                       <img
                         src={cover}
                         alt=""
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                        }}
+                        className="emw-card-img"
                         loading="lazy"
                       />
                     ) : (
-                      <div
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#888",
-                          fontSize: 13,
-                        }}
-                      >
-                        No cover yet
-                      </div>
+                      <div className="emw-card-empty">No cover yet</div>
                     )}
 
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        padding: 12,
-                        background:
-                          "linear-gradient(transparent, rgba(0,0,0,0.65))",
-                        color: "#fff",
-                      }}
-                    >
-                      <div style={{ fontWeight: 800, fontSize: 15 }}>
-                        {ev.title}
-                      </div>
-                      <div style={{ fontSize: 12, opacity: 0.9, marginTop: 4 }}>
-                        {dateLabel}
-                      </div>
+                    <div className="emw-card-gradient">
+                      <div className="emw-card-title">{ev.title}</div>
+                      <div className="emw-card-date">{dateLabel}</div>
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      padding: 12,
-                      fontSize: 13,
-                      color: "#333",
-                    }}
-                  >
-                    <div style={{ opacity: 0.85 }}>{mediaCount} photos</div>
-                    <div style={{ opacity: 0.85 }}>
+                  <div className="emw-card-meta">
+                    <div className="emw-card-stat">{mediaCount} photos</div>
+                    <div className="emw-card-stat">
                       {contributorCount} contributors
                     </div>
                   </div>
@@ -594,44 +466,21 @@ export default function EventsPage() {
 
           {/* Selected event details */}
           {selectedEvent && (
-            <div style={{ marginTop: 26, maxWidth: 1100 }}>
-              <div
-                style={{
-                  padding: 16,
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 14,
-                  background: "#fff",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
+            <div className="emw-detail-wrap">
+              <div className="emw-detail">
+                <div className="emw-detail-head">
+                  <div className="emw-detail-titleArea">
                     {editingEventId !== selectedEvent.eventId ? (
-                      <div style={{ fontWeight: 800, fontSize: 18 }}>
+                      <div className="emw-detail-title">
                         {selectedEvent.title}
                       </div>
                     ) : (
                       <>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                          Edit title
-                        </div>
+                        <div className="emw-detail-label">Edit title</div>
                         <input
                           value={editTitle}
                           onChange={(e) => setEditTitle(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: 10,
-                            marginTop: 8,
-                            borderRadius: 10,
-                            border: "1px solid #d1d5db",
-                            outline: "none",
-                          }}
+                          className="emw-input"
                         />
                       </>
                     )}
@@ -642,30 +491,20 @@ export default function EventsPage() {
                     const canDownload = admin || canManage;
 
                     return (
-                      <div
-                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-                      >
+                      <div className="emw-detail-actions">
                         {canDownload && (
                           <button
                             onClick={() => downloadEventZip(selectedEvent)}
                             disabled={
                               downloadingEventId === selectedEvent.eventId
                             }
-                            style={{
-                              padding: "8px 12px",
-                              borderRadius: 10,
-                              border: "1px solid #d1d5db",
-                              background: "#fff",
-                              cursor:
-                                downloadingEventId === selectedEvent.eventId
-                                  ? "not-allowed"
-                                  : "pointer",
-                              opacity:
-                                downloadingEventId === selectedEvent.eventId
-                                  ? 0.7
-                                  : 1,
-                              fontWeight: 600,
-                            }}
+                            className="emw-btn"
+                            title="Download all media as a ZIP"
+                            data-disabled={
+                              downloadingEventId === selectedEvent.eventId
+                                ? "true"
+                                : "false"
+                            }
                           >
                             {downloadingEventId === selectedEvent.eventId
                               ? "Preparing..."
@@ -679,28 +518,14 @@ export default function EventsPage() {
                             <>
                               <button
                                 onClick={() => startEdit(selectedEvent)}
-                                style={{
-                                  padding: "8px 12px",
-                                  borderRadius: 10,
-                                  border: "1px solid #d1d5db",
-                                  background: "#fff",
-                                  cursor: "pointer",
-                                  fontWeight: 600,
-                                }}
+                                className="emw-btn"
                               >
                                 Edit
                               </button>
 
                               <button
                                 onClick={() => requestDelete(selectedEvent)}
-                                style={{
-                                  padding: "8px 12px",
-                                  borderRadius: 10,
-                                  border: "1px solid #d1d5db",
-                                  background: "#fff",
-                                  cursor: "pointer",
-                                  fontWeight: 600,
-                                }}
+                                className="emw-btn"
                               >
                                 Delete Event
                               </button>
@@ -711,28 +536,11 @@ export default function EventsPage() {
                           <>
                             <button
                               onClick={() => saveEdit(selectedEvent.eventId)}
-                              style={{
-                                padding: "8px 12px",
-                                borderRadius: 10,
-                                border: "1px solid #d1d5db",
-                                background: "#fff",
-                                cursor: "pointer",
-                                fontWeight: 600,
-                              }}
+                              className="emw-btn"
                             >
                               Save
                             </button>
-                            <button
-                              onClick={cancelEdit}
-                              style={{
-                                padding: "8px 12px",
-                                borderRadius: 10,
-                                border: "1px solid #d1d5db",
-                                background: "#fff",
-                                cursor: "pointer",
-                                fontWeight: 600,
-                              }}
-                            >
+                            <button onClick={cancelEdit} className="emw-btn">
                               Cancel
                             </button>
                           </>
@@ -761,60 +569,34 @@ export default function EventsPage() {
                 })()}
 
                 {admin && confirmDeleteEventId === selectedEvent.eventId && (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: 12,
-                      border: "1px solid #f2c2c2",
-                      background: "#fff7f7",
-                      borderRadius: 12,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      alignItems: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: 13 }}>
+                  <div className="emw-confirm">
+                    <div className="emw-confirm-text">
                       Delete <strong>{selectedEvent.title}</strong>? This will
                       also delete all media under the event.
                     </div>
 
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div className="emw-confirm-actions">
                       <button
                         onClick={cancelDelete}
                         disabled={deletingEventId === selectedEvent.eventId}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 10,
-                          border: "1px solid #d1d5db",
-                          background: "#fff",
-                          cursor:
-                            deletingEventId === selectedEvent.eventId
-                              ? "not-allowed"
-                              : "pointer",
-                          opacity:
-                            deletingEventId === selectedEvent.eventId ? 0.6 : 1,
-                          fontWeight: 600,
-                        }}
+                        className="emw-btn"
+                        data-disabled={
+                          deletingEventId === selectedEvent.eventId
+                            ? "true"
+                            : "false"
+                        }
                       >
                         Cancel
                       </button>
                       <button
                         onClick={() => confirmDelete(selectedEvent)}
                         disabled={deletingEventId === selectedEvent.eventId}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 10,
-                          border: "1px solid #d1d5db",
-                          background: "#fff",
-                          cursor:
-                            deletingEventId === selectedEvent.eventId
-                              ? "not-allowed"
-                              : "pointer",
-                          opacity:
-                            deletingEventId === selectedEvent.eventId ? 0.6 : 1,
-                          fontWeight: 600,
-                        }}
+                        className="emw-btn"
+                        data-disabled={
+                          deletingEventId === selectedEvent.eventId
+                            ? "true"
+                            : "false"
+                        }
                       >
                         {deletingEventId === selectedEvent.eventId
                           ? "Deleting..."
@@ -824,14 +606,14 @@ export default function EventsPage() {
                   </div>
                 )}
 
-                <div style={{ marginTop: 14 }}>
+                <div className="emw-section">
                   <UploadMedia
                     eventId={selectedEvent.eventId}
                     onUploaded={() => bumpRefresh(selectedEvent.eventId)}
                   />
                 </div>
 
-                <div style={{ marginTop: 10 }}>
+                <div className="emw-section emw-section-tight">
                   <MediaGallery
                     eventId={selectedEvent.eventId}
                     refreshKey={mediaRefresh[selectedEvent.eventId] ?? 0}
@@ -850,53 +632,17 @@ export default function EventsPage() {
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setCreateOpen(false);
           }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
+          className="emw-modalOverlay"
         >
-          <div
-            style={{
-              width: "min(560px, 100%)",
-              background: "#fff",
-              borderRadius: 14,
-              border: "1px solid #eee",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-              padding: 16,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 10,
-                alignItems: "center",
-                marginBottom: 10,
-              }}
-            >
-              <div style={{ fontSize: 16, fontWeight: 800 }}>Create event</div>
-              <button
-                onClick={() => setCreateOpen(false)}
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
+          <div className="emw-modal">
+            <div className="emw-modalHead">
+              <div className="emw-modalTitle">Create event</div>
+              <button onClick={() => setCreateOpen(false)} className="emw-btn">
                 Close
               </button>
             </div>
 
-            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 12 }}>
+            <div className="emw-modalText">
               Enter an event title. You can add photos and invite members after
               creating it.
             </div>
@@ -906,39 +652,19 @@ export default function EventsPage() {
               onChange={(e) => setCreateTitle(e.target.value)}
               placeholder="Event title"
               autoFocus
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 12,
-                border: "1px solid #d1d5db",
-                outline: "none",
-              }}
+              className="emw-input emw-input-lg"
               onKeyDown={(e) => {
                 if (e.key === "Enter") createEvent();
                 if (e.key === "Escape") setCreateOpen(false);
               }}
             />
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 10,
-                marginTop: 14,
-              }}
-            >
+            <div className="emw-modalActions">
               <button
                 onClick={() => setCreateOpen(false)}
                 disabled={creating}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  cursor: creating ? "not-allowed" : "pointer",
-                  opacity: creating ? 0.7 : 1,
-                  fontWeight: 600,
-                }}
+                className="emw-btn"
+                data-disabled={creating ? "true" : "false"}
               >
                 Cancel
               </button>
@@ -946,20 +672,12 @@ export default function EventsPage() {
               <button
                 onClick={createEvent}
                 disabled={creating || !createTitle.trim() || !myUserId}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: "1px solid #111",
-                  background: "#0b0b1a",
-                  color: "#fff",
-                  cursor:
-                    creating || !createTitle.trim() || !myUserId
-                      ? "not-allowed"
-                      : "pointer",
-                  opacity:
-                    creating || !createTitle.trim() || !myUserId ? 0.6 : 1,
-                  fontWeight: 700,
-                }}
+                className="emw-btn emw-btn-primary"
+                data-disabled={
+                  creating || !createTitle.trim() || !myUserId
+                    ? "true"
+                    : "false"
+                }
               >
                 {creating ? "Creating..." : "Create"}
               </button>

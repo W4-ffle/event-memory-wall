@@ -75,13 +75,14 @@ export default function UploadMedia({
   }
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ fontSize: 13, fontWeight: 600 }}>Upload media:</div>
+    <div className="emw-upload">
+      <div className="emw-sectionTitle">Upload media:</div>
 
       <input
         type="file"
         multiple
         disabled={busy}
+        className="emw-file"
         onChange={(e) => {
           void onPickFiles(e.target.files);
           // allow picking the same files again later
@@ -89,8 +90,8 @@ export default function UploadMedia({
         }}
       />
 
-      {busy && <div style={{ fontSize: 12, opacity: 0.75 }}>Uploading...</div>}
-      {msg && <div style={{ fontSize: 12, opacity: 0.85 }}>{msg}</div>}
+      {busy && <div className="emw-helpText">Uploading...</div>}
+      {msg && <div className="emw-helpTextStrong">{msg}</div>}
     </div>
   );
 }

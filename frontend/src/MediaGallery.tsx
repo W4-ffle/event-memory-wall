@@ -98,71 +98,32 @@ export default function MediaGallery({
     }
   }
 
-  if (loading) return <div>Loading media...</div>;
-  if (error) return <div style={{ color: "red" }}>{error}</div>;
-  if (!media.length) return <div>No media yet.</div>;
+  if (loading) return <div className="emw-muted">Loading media...</div>;
+  if (error) return <div className="emw-errorText">{error}</div>;
+  if (!media.length) return <div className="emw-muted">No media yet.</div>;
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-        gap: 12,
-        marginTop: 12,
-      }}
-    >
+    <div className="emw-mediaGrid">
       {media.map((m) => (
-        <div
-          key={m.mediaId}
-          style={{
-            border: "1px solid #eee",
-            borderRadius: 10,
-            padding: 10,
-            background: "#fff",
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              borderRadius: 10,
-              overflow: "hidden",
-              background: "#f6f6f6",
-              aspectRatio: "1 / 1",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+        <div key={m.mediaId} className="emw-mediaCard">
+          <div className="emw-mediaThumb">
             {m.type === "IMAGE" ? (
               <img
                 src={m.displayUrl}
                 alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                className="emw-mediaFill"
                 loading="lazy"
               />
             ) : (
-              <video
-                src={m.displayUrl}
-                controls
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
+              <video src={m.displayUrl} controls className="emw-mediaFill" />
             )}
           </div>
 
           <button
             onClick={() => onDelete(m.mediaId)}
             disabled={deleting === m.mediaId}
-            style={{
-              marginTop: 10,
-              width: "100%",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "1px solid #ddd",
-              background: "#fff",
-              cursor: deleting === m.mediaId ? "not-allowed" : "pointer",
-              opacity: deleting === m.mediaId ? 0.7 : 1,
-              fontWeight: 600,
-            }}
+            className="emw-btn emw-btn-ghost emw-btn-block"
+            data-disabled={deleting === m.mediaId ? "true" : "false"}
           >
             {deleting === m.mediaId ? "Deleting..." : "Delete"}
           </button>

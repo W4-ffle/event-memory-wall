@@ -24,98 +24,42 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        width: "100vw",
-        height: "100vh",
-        background: "#fff",
-        fontFamily: "system-ui",
-        overflow: "auto",
-      }}
-    >
+    <div className="emw-loginShell">
       {/* Top bar */}
-      <div
-        style={{
-          width: "100%",
-          padding: "18px 24px",
-          borderBottom: "1px solid #eee",
-          boxSizing: "border-box",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: "0 auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <div style={{ fontSize: 20, fontWeight: 800 }}>Memory Wall</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Sign in</div>
+      <div className="emw-loginTopbar">
+        <div className="emw-loginTopbarInner">
+          <div className="emw-brand">Memory Wall</div>
+          <div className="emw-loginHint">Sign in</div>
         </div>
       </div>
 
       {/* Centered content */}
-      <div
-        style={{
-          minHeight: "calc(100vh - 61px)", // subtract topbar height
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-          boxSizing: "border-box",
-        }}
-      >
-        <div
-          style={{
-            width: "min(560px, 100%)",
-            border: "1px solid #eee",
-            borderRadius: 14,
-            background: "#fff",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-            padding: 22,
-          }}
-        >
-          <div style={{ fontSize: 18, fontWeight: 800 }}>Welcome</div>
-          <div style={{ fontSize: 13, opacity: 0.75, marginTop: 6 }}>
+      <div className="emw-loginCenter">
+        <div className="emw-loginCard">
+          <div className="emw-loginTitle">Welcome</div>
+          <div className="emw-loginSubtitle">
             Enter a username to join. Admins can optionally enter the passcode
             to manage events.
           </div>
 
-          <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>
-                Username
-              </div>
+          <div className="emw-loginForm">
+            <div className="emw-field">
+              <div className="emw-label">Username</div>
               <input
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 placeholder="e.g. barry"
                 autoComplete="username"
-                style={{
-                  padding: 12,
-                  borderRadius: 12,
-                  border: "1px solid #ddd",
-                  outline: "none",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
+                className="emw-input emw-input-lg"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") save();
                 }}
               />
             </div>
 
-            <div style={{ display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8 }}>
-                Admin passcode{" "}
-                <span style={{ fontWeight: 600, opacity: 0.6 }}>
-                  (optional)
-                </span>
+            <div className="emw-field">
+              <div className="emw-label">
+                Admin passcode <span className="emw-labelHint">(optional)</span>
               </div>
               <input
                 value={adminPasscode}
@@ -123,48 +67,22 @@ export default function LoginPage({ onDone }: { onDone: () => void }) {
                 placeholder="Enter passcode if you have it"
                 autoComplete="current-password"
                 type="password"
-                style={{
-                  padding: 12,
-                  borderRadius: 12,
-                  border: "1px solid #ddd",
-                  outline: "none",
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
+                className="emw-input emw-input-lg"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") save();
                 }}
               />
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 10,
-                marginTop: 6,
-              }}
-            >
+            <div className="emw-loginActions">
               <button
                 onClick={save}
                 disabled={!canContinue}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #111",
-                  background: "#0b0b1a",
-                  color: "#fff",
-                  cursor: canContinue ? "pointer" : "not-allowed",
-                  opacity: canContinue ? 1 : 0.6,
-                  fontWeight: 800,
-                }}
+                className="emw-btn emw-btn-primary"
+                data-disabled={!canContinue ? "true" : "false"}
               >
                 Continue
               </button>
-            </div>
-
-            <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>
-              Your username is stored locally in your browser for this demo.
             </div>
           </div>
         </div>

@@ -56,80 +56,50 @@ export default function MembersPanel({
   }
 
   return (
-    <div style={{ marginTop: 10 }}>
+    <div className="emw-members">
       <button
         onClick={() => setOpen((v) => !v)}
-        style={{
-          padding: "8px 12px",
-          borderRadius: 8,
-          border: "1px solid #ddd",
-          background: "#fff",
-          cursor: "pointer",
-        }}
+        className="emw-btn emw-btn-ghost"
       >
         {open ? "Hide Members" : "Members"}
       </button>
 
       {open && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: 12,
-            border: "1px solid #eee",
-            borderRadius: 10,
-            background: "#fafafa",
-            display: "grid",
-            gap: 10,
-          }}
-        >
-          <div style={{ fontSize: 12, opacity: 0.75 }}>
+        <div className="emw-membersPanel">
+          <div className="emw-membersSummary">
             Members: {members?.length ? members.join(", ") : "None"}
           </div>
 
           {canManage && (
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="emw-membersAddRow">
               <input
                 value={newMember}
                 onChange={(e) => setNewMember(e.target.value)}
                 placeholder="Add member by userId"
-                style={{ flex: 1, padding: 10 }}
+                className="emw-input emw-membersAddInput"
                 disabled={busy}
               />
               <button
                 onClick={add}
                 disabled={busy || !newMember.trim()}
-                style={{ padding: "10px 14px" }}
+                className="emw-btn emw-btn-primary"
+                data-disabled={busy || !newMember.trim() ? "true" : "false"}
               >
                 Add
               </button>
             </div>
           )}
 
-          {/* Optional remove list */}
-          <div style={{ display: "grid", gap: 6 }}>
+          <div className="emw-membersList">
             {(members ?? []).map((m) => {
               const isOwner = !!ownerId && m === ownerId;
 
               return (
-                <div
-                  key={m}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "6px 8px",
-                    border: "1px solid #eee",
-                    borderRadius: 8,
-                    background: "#fff",
-                  }}
-                >
-                  <div style={{ fontSize: 13 }}>
+                <div key={m} className="emw-membersRow">
+                  <div className="emw-membersUser">
                     {m}{" "}
                     {isOwner && (
-                      <span style={{ fontSize: 12, opacity: 0.7 }}>
-                        (owner)
-                      </span>
+                      <span className="emw-membersOwner">(owner)</span>
                     )}
                   </div>
 
@@ -137,14 +107,8 @@ export default function MembersPanel({
                     <button
                       onClick={() => remove(m)}
                       disabled={busy || isOwner}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        cursor: "pointer",
-                        opacity: isOwner ? 0.5 : 1,
-                      }}
+                      className="emw-btn emw-btn-ghost emw-btn-sm"
+                      data-disabled={busy || isOwner ? "true" : "false"}
                       title={
                         isOwner ? "Owner cannot be removed" : "Remove member"
                       }
@@ -157,7 +121,7 @@ export default function MembersPanel({
             })}
           </div>
 
-          {msg && <div style={{ fontSize: 12, opacity: 0.8 }}>{msg}</div>}
+          {msg && <div className="emw-membersMsg">{msg}</div>}
         </div>
       )}
     </div>
