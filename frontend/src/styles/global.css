@@ -48,6 +48,7 @@ button:not(.emw-btn) {
 
   --danger-bg: #fff7f7;
   --danger-border: #f2c2c2;
+  --danger-text: #b91c1c;
 
   --input-bg: #ffffff;
   --input-text: #111827;
@@ -72,6 +73,7 @@ html.emw-dark {
 
   --danger-bg: rgba(185, 28, 28, 0.12);
   --danger-border: rgba(239, 68, 68, 0.35);
+  --danger-text: #fca5a5;
 
   --input-bg: #0f172a;
   --input-text: #e5e7eb;
@@ -92,8 +94,9 @@ html.emw-dark {
   font-size: 13px;
   color: var(--muted);
 }
+
 .emw-errorText {
-  color: #b91c1c;
+  color: var(--danger-text);
   font-size: 13px;
   font-weight: 600;
 }
@@ -197,7 +200,7 @@ html.emw-dark {
 
 .emw-loginHint {
   color: var(--muted);
-  opacity: 1; /* important: avoid double-dimming in dark mode */
+  opacity: 1;
 }
 
 .emw-loginCenter {
@@ -224,7 +227,7 @@ html.emw-dark {
 
 .emw-loginSubtitle {
   color: var(--muted);
-  opacity: 1; /* important: avoid double-dimming in dark mode */
+  opacity: 1;
 }
 
 .emw-loginForm {
@@ -328,16 +331,17 @@ html.emw-dark {
 
 .emw-subtitle {
   color: var(--muted);
-  opacity: 1; /* important: avoid double-dimming in dark mode */
+  opacity: 1;
 }
 
 .emw-error {
   padding: 12px;
-  background: #fee;
-  border: 1px solid #f5caca;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: 10px;
   margin-bottom: 14px;
   max-width: 900px;
+  color: var(--text);
 }
 
 /* ==============================
@@ -363,7 +367,7 @@ html.emw-dark {
 }
 
 .emw-card.is-selected {
-  border: 2px solid #111;
+  border: 2px solid var(--text);
 }
 
 /* Force a fixed card media height so images don’t become huge */
@@ -518,8 +522,9 @@ html.emw-dark {
   box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid #d1d5db;
-  background: #fff;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
 }
 
@@ -532,8 +537,9 @@ html.emw-dark {
   margin-right: 10px;
   padding: 8px 12px;
   border-radius: 10px;
-  border: 1px solid #d1d5db;
-  background: #fff;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--text);
   cursor: pointer;
   font-weight: 600;
 }
@@ -545,12 +551,14 @@ html.emw-dark {
 
 .emw-helpText {
   font-size: 12px;
-  opacity: 0.75;
+  color: var(--muted);
+  opacity: 1;
 }
 
 .emw-helpTextStrong {
   font-size: 12px;
-  opacity: 0.85;
+  color: var(--muted);
+  opacity: 1;
 }
 
 /* ==============================
@@ -564,9 +572,9 @@ html.emw-dark {
 .emw-membersBox {
   margin-top: 10px;
   padding: 12px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fafafa;
+  background: var(--surface-2);
   display: grid;
   gap: 10px;
 }
@@ -577,13 +585,13 @@ html.emw-dark {
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 
 /* ==============================
-   MediaGallery (new)
+   MediaGallery (theme-safe)
 ============================== */
 
 .emw-mediaGrid {
@@ -594,10 +602,10 @@ html.emw-dark {
 }
 
 .emw-mediaCard {
-  border: 1px solid #eee;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px;
-  background: #fff;
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -608,7 +616,7 @@ html.emw-dark {
   aspect-ratio: 1 / 1;
   border-radius: 10px;
   overflow: hidden;
-  background: #f6f6f6;
+  background: var(--surface-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -618,6 +626,7 @@ html.emw-dark {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 /* ==============================
@@ -659,7 +668,8 @@ html.emw-dark {
 
 .emw-modalText {
   font-size: 13px;
-  opacity: 0.75;
+  color: var(--muted);
+  opacity: 1;
   margin-bottom: 12px;
 }
 
