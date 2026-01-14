@@ -238,10 +238,13 @@ export default function MediaGallery({
             onTouchEnd={onTouchEnd}
           >
             <button
-              className="emw-lightboxClose"
-              onClick={closeLightbox}
-              aria-label="Close"
               type="button"
+              className="emw-lightboxClose"
+              aria-label="Close"
+              onMouseDown={(e) => {
+                e.stopPropagation(); // critical
+                closeLightbox();
+              }}
             >
               ✕
             </button>
