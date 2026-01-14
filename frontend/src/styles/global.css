@@ -23,39 +23,85 @@ input {
   font-family: inherit;
 }
 
+button {
+  border: none;
+  background: none;
+}
+
 /* ==============================
-   Shared buttons & inputs (emw-*)
+   Utilities
+============================== */
+
+.emw-brand {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.emw-muted {
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.emw-errorText {
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ==============================
+   Common buttons / inputs
 ============================== */
 
 .emw-btn {
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
   border: 1px solid #d1d5db;
   background: #fff;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-.emw-btn-primary {
-  border: 1px solid #111;
-  background: #0b0b1a;
-  color: #fff;
-}
-
+.emw-btn[data-disabled="true"],
 .emw-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.emw-input {
-  padding: 12px;
-  border-radius: 12px;
+.emw-btn-primary {
+  border-color: #111;
+  background: #0b0b1a;
+  color: #fff;
+  font-weight: 700;
+}
+
+.emw-btn-ghost {
+  background: #fff;
   border: 1px solid #ddd;
-  outline: none;
+  font-weight: 600;
+}
+
+.emw-btn-block {
+  width: 100%;
+}
+
+.emw-btn-plus {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.emw-input {
   width: 100%;
   box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
   background: #fff;
-  color: #111827;
+  outline: none;
 }
 
 .emw-input:focus {
@@ -63,7 +109,7 @@ input {
 }
 
 .emw-input-lg {
-  padding: 12px;
+  padding: 12px 12px;
 }
 
 /* ==============================
@@ -75,15 +121,14 @@ input {
   inset: 0;
   width: 100vw;
   height: 100vh;
-  background: #fff;
   overflow: auto;
+  background: #fff;
 }
 
 .emw-loginTopbar {
   width: 100%;
   padding: 18px 24px;
   border-bottom: 1px solid #eee;
-  background: #fff;
 }
 
 .emw-loginTopbarInner {
@@ -93,11 +138,6 @@ input {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-}
-
-.emw-brand {
-  font-size: 20px;
-  font-weight: 800;
 }
 
 .emw-loginHint {
@@ -139,16 +179,6 @@ input {
   margin-top: 16px;
 }
 
-.emw-loginActions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 6px;
-}
-
-/* ==============================
-   Generic form helpers
-============================== */
-
 .emw-field {
   display: grid;
   gap: 6px;
@@ -165,31 +195,40 @@ input {
   opacity: 0.6;
 }
 
+.emw-loginActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
 /* ==============================
-   App shell / navbar (Events page)
+   Events page shell + navbar
 ============================== */
 
-.emw-appShell {
+.emw-shell {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
   overflow: auto;
   background: #f7f7f8;
+  color: #111827;
 }
 
+/* Fixed full-width navbar */
 .emw-navbar {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 64px;
-  background: #f7f7f8;
+  width: 100%;
   border-bottom: 1px solid #e5e7eb;
+  background: #f7f7f8;
   z-index: 50;
 }
 
-.emw-navbarInner {
+.emw-navbar-inner {
   height: 100%;
   padding: 0 24px;
   display: flex;
@@ -198,24 +237,42 @@ input {
   gap: 16px;
 }
 
+.emw-navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.emw-session {
+  font-size: 12px;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.emw-session-role {
+  opacity: 0.75;
+}
+
+/* Main content area */
 .emw-main {
-  padding-top: 64px;
+  width: 100%;
 }
 
 .emw-page {
   padding: 24px;
+  box-sizing: border-box;
 }
 
-/* ==============================
-   Page titles & errors
-============================== */
+.emw-page-head {
+  margin-bottom: 18px;
+}
 
-.emw-pageTitle {
+.emw-h1 {
   font-size: 18px;
   font-weight: 800;
 }
 
-.emw-pageSubtitle {
+.emw-subtitle {
   font-size: 13px;
   opacity: 0.75;
   margin-top: 6px;
@@ -234,84 +291,217 @@ input {
    Event cards grid
 ============================== */
 
-.emw-eventGrid {
+.emw-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 18px;
+  width: 100%;
 }
 
-.emw-eventCard {
+.emw-card {
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  background: #fff;
   border-radius: 14px;
   overflow: hidden;
-  background: #fff;
-  border: 1px solid #e5e7eb;
   padding: 0;
   cursor: pointer;
-  text-align: left;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
 }
 
-.emw-eventCard.selected {
+.emw-card.is-selected {
   border: 2px solid #111;
 }
 
-.emw-eventCover {
+/* Force a fixed card media height so images don’t become huge */
+.emw-card-media {
   position: relative;
   height: 190px;
   background: #f3f3f3;
 }
 
-.emw-eventCover img {
+.emw-card-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
-.emw-eventOverlay {
+.emw-card-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 13px;
+}
+
+.emw-card-gradient {
   position: absolute;
-  inset: auto 0 0 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   padding: 12px;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
   color: #fff;
 }
 
-.emw-eventTitle {
+.emw-card-title {
   font-weight: 800;
   font-size: 15px;
 }
 
-.emw-eventMeta {
+.emw-card-date {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+.emw-card-meta {
   display: flex;
   justify-content: space-between;
+  gap: 10px;
   padding: 12px;
   font-size: 13px;
   color: #333;
 }
 
+.emw-card-stat {
+  opacity: 0.85;
+}
+
 /* ==============================
-   Selected event panel
+   Selected event detail panel
 ============================== */
 
-.emw-eventPanel {
+.emw-detail-wrap {
   margin-top: 26px;
   max-width: 1100px;
 }
 
-.emw-eventPanelInner {
+.emw-detail {
   padding: 16px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   background: #fff;
 }
 
-.emw-eventHeader {
+.emw-detail-head {
   display: flex;
   justify-content: space-between;
   gap: 10px;
   align-items: center;
 }
 
+.emw-detail-titleArea {
+  flex: 1;
+  min-width: 0;
+}
+
+.emw-detail-title {
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.emw-detail-label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.emw-detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Confirm delete box */
+.emw-confirm {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #f2c2c2;
+  background: #fff7f7;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.emw-confirm-text {
+  font-size: 13px;
+}
+
+.emw-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.emw-section {
+  margin-top: 14px;
+}
+
+.emw-section-tight {
+  margin-top: 10px;
+}
+
 /* ==============================
-   Members panel
+   UploadMedia
+============================== */
+
+.emw-upload {
+  display: grid;
+  gap: 8px;
+}
+
+.emw-sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.emw-file {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+}
+
+.emw-file:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.emw-file::file-selector-button {
+  margin-right: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.emw-file:disabled::file-selector-button {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.emw-helpText {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.emw-helpTextStrong {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+/* ==============================
+   MembersPanel (basic support)
 ============================== */
 
 .emw-membersPanel {
@@ -340,118 +530,7 @@ input {
 }
 
 /* ==============================
-   Media gallery
-============================== */
-
-.emw-mediaGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.emw-mediaItem {
-  border: 1px solid #eee;
-  border-radius: 10px;
-  padding: 10px;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.emw-mediaPreview {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #f6f6f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.emw-mediaPreview img,
-.emw-mediaPreview video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* ==============================
-   Upload media
-============================== */
-
-.emw-upload {
-  display: grid;
-  gap: 8px;
-}
-
-.emw-sectionTitle {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.emw-file {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-}
-
-.emw-helpText {
-  font-size: 12px;
-  opacity: 0.75;
-}
-
-.emw-helpTextStrong {
-  font-size: 12px;
-  opacity: 0.85;
-}
-
-/* ==============================
-   Modals
-============================== */
-
-.emw-modalBackdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-
-.emw-modal {
-  width: min(560px, 100%);
-  background: #fff;
-  border-radius: 14px;
-  border: 1px solid #eee;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-  padding: 16px;
-}
-
-
-/* ==============================
-   Utilities (used across pages)
-============================== */
-
-.emw-muted {
-  font-size: 13px;
-  opacity: 0.75;
-}
-
-.emw-errorText {
-  color: #b91c1c;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-/* ==============================
-   Media gallery (new classes used by MediaGallery.tsx)
+   MediaGallery (new)
 ============================== */
 
 .emw-mediaGrid {
@@ -489,15 +568,51 @@ input {
 }
 
 /* ==============================
-   Button variants (used by MediaGallery.tsx)
+   Modal (Create Event)
 ============================== */
 
-.emw-btn-block {
-  width: 100%;
+.emw-modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
 }
 
-.emw-btn-ghost {
+.emw-modal {
+  width: min(560px, 100%);
   background: #fff;
-  border: 1px solid #ddd;
-  font-weight: 600;
+  border-radius: 14px;
+  border: 1px solid #eee;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  padding: 16px;
+}
+
+.emw-modalHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.emw-modalTitle {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.emw-modalText {
+  font-size: 13px;
+  opacity: 0.75;
+  margin-bottom: 12px;
+}
+
+.emw-modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
 }
