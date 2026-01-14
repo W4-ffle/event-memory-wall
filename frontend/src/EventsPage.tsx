@@ -164,6 +164,13 @@ export default function EventsPage() {
       const data = await apiGet<EventDoc[]>("/events");
       setEvents(data);
 
+      // If the previously selected event no longer exists, clear selection.
+      setSelectedEventId((prev) => {
+        if (!prev) return null;
+        const stillExists = (data ?? []).some((e) => e.eventId === prev);
+        return stillExists ? prev : null;
+      });
+
       const baseMeta: Record<
         string,
         { coverUrl?: string; mediaCount: number; contributorCount: number }
@@ -209,9 +216,7 @@ export default function EventsPage() {
         })
       );
 
-      if (!selectedEventId && (data ?? []).length > 0) {
-        setSelectedEventId((data ?? [])[0].eventId);
-      }
+      // IMPORTANT: no auto-selection of the first event anymore.
     } catch (e: any) {
       setError(e.message);
     }
@@ -234,6 +239,8 @@ export default function EventsPage() {
       setCreateTitle("");
       setCreateOpen(false);
       await load();
+
+      // Optional: after creation, select the newly created event (good UX).
       if (created?.eventId) setSelectedEventId(created.eventId);
     } catch (e: any) {
       setError(e.message);
@@ -404,6 +411,7 @@ export default function EventsPage() {
               <span className="emw-btn-plus">+</span>
               Create Event
             </button>
+
             <button
               onClick={() => setTheme(toggleTheme())}
               className="emw-btn"
@@ -442,7 +450,11 @@ export default function EventsPage() {
               return (
                 <button
                   key={ev.id}
-                  onClick={() => setSelectedEventId(ev.eventId)}
+                  onClick={() =>
+                    setSelectedEventId((prev) =>
+                      prev === ev.eventId ? null : ev.eventId
+                    )
+                  }
                   className={`emw-card ${isSelected ? "is-selected" : ""}`}
                 >
                   <div className="emw-card-media">
@@ -473,6 +485,13 @@ export default function EventsPage() {
               );
             })}
           </div>
+
+          {/* No selection state */}
+          {!selectedEvent && (
+            <div className="emw-muted" style={{ marginTop: 16 }}>
+              No event selected. Click an event card to view its media.
+            </div>
+          )}
 
           {/* Selected event details */}
           {selectedEvent && (
