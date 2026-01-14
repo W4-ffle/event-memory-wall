@@ -4,7 +4,7 @@ import { apiGet, apiDeleteRaw } from "./api";
 type MediaDoc = {
   mediaId: string;
   blobUrl: string;
-  type: "IMAGE" | "VIDEO";
+  type: "IMAGE" | "VIDEO"; // backend may be wrong; UI will also infer from extension
   fileName: string;
   createdAt: string;
 };
@@ -26,35 +26,22 @@ function pickDisplayUrl(sas: any): string | null {
   );
 }
 
-function guessMimeFromName(fileName: string): string | undefined {
-  const ext = fileName.split(".").pop()?.toLowerCase();
-  switch (ext) {
-    case "mp4":
-      return "video/mp4";
-    case "mov":
-      return "video/quicktime";
-    case "webm":
-      return "video/webm";
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "png":
-      return "image/png";
-    default:
-      return undefined;
-  }
+/**
+ * Your backend is currently returning VIDEO files as type=IMAGE (seen in DevTools).
+ * So we infer from filename extension as a robust fallback.
+ */
+function isVideoFile(fileName?: string) {
+  const ext = (fileName || "").split(".").pop()?.toLowerCase();
+  return ext === "mp4" || ext === "mov" || ext === "webm" || ext === "ogv";
 }
 
 /**
- * Azure Blob supports response header overrides:
- *  - rscd: Content-Disposition
- *  - rsct: Content-Type
+ * Optional: force inline (prevents "download" behaviour in some cases)
+ * Azure Blob supports rscd=inline for Content-Disposition override.
  */
-function withInlineAndType(url: string, mime?: string) {
+function withInline(url: string) {
   const sep = url.includes("?") ? "&" : "?";
-  let out = `${url}${sep}rscd=inline`;
-  if (mime) out += `&rsct=${encodeURIComponent(mime)}`;
-  return out;
+  return `${url}${sep}rscd=inline`;
 }
 
 export default function MediaGallery({
@@ -162,7 +149,7 @@ export default function MediaGallery({
 
     window.addEventListener("keydown", onKeyDown);
 
-    // Optional: prevent page scroll while open
+    // Prevent page scroll while open
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -180,7 +167,6 @@ export default function MediaGallery({
     try {
       await apiDeleteRaw(`/events/${eventId}/media/${mediaId}`);
       onDeleted?.();
-      // If lightbox open and item deleted, close (simple + safe)
       if (lightboxOpen) setLightboxOpen(false);
     } catch (e: any) {
       setError(e?.message ?? "Delete failed.");
@@ -190,7 +176,6 @@ export default function MediaGallery({
   }
 
   function onBackdropMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    // Only close if clicking the backdrop itself
     if (e.target === e.currentTarget) closeLightbox();
   }
 
@@ -213,7 +198,6 @@ export default function MediaGallery({
     const dx = t.clientX - startX;
     const dy = t.clientY - startY;
 
-    // Basic guard: must be mostly horizontal swipe
     if (Math.abs(dx) < 50) return;
     if (Math.abs(dy) > 80) return;
 
@@ -228,49 +212,48 @@ export default function MediaGallery({
   return (
     <>
       <div className="emw-mediaGrid">
-        {media.map((m, idx) => (
-          <div key={m.mediaId} className="emw-mediaCard">
-            <button
-              type="button"
-              className="emw-mediaThumb emw-mediaThumbBtn"
-              onClick={() => openAt(idx)}
-              title="View"
-            >
-              {m.type === "IMAGE" ? (
-                <img
-                  src={m.displayUrl}
-                  alt={m.fileName || ""}
-                  className="emw-mediaFill"
-                  loading="lazy"
-                />
-              ) : (
-                <video
-                  className="emw-mediaFill"
-                  muted
-                  playsInline
-                  preload="metadata"
-                >
-                  <source
-                    src={withInlineAndType(
-                      m.displayUrl,
-                      guessMimeFromName(m.fileName)
-                    )}
-                    type={guessMimeFromName(m.fileName) || "video/mp4"}
-                  />
-                </video>
-              )}
-            </button>
+        {media.map((m, idx) => {
+          const treatAsVideo = m.type === "VIDEO" || isVideoFile(m.fileName);
+          const src = withInline(m.displayUrl);
 
-            <button
-              onClick={() => onDelete(m.mediaId)}
-              disabled={deleting === m.mediaId}
-              className="emw-btn emw-btn-ghost emw-btn-block"
-              data-disabled={deleting === m.mediaId ? "true" : "false"}
-            >
-              {deleting === m.mediaId ? "Deleting..." : "Delete"}
-            </button>
-          </div>
-        ))}
+          return (
+            <div key={m.mediaId} className="emw-mediaCard">
+              <button
+                type="button"
+                className="emw-mediaThumb emw-mediaThumbBtn"
+                onClick={() => openAt(idx)}
+                title="View"
+              >
+                {treatAsVideo ? (
+                  <video
+                    className="emw-mediaFill"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  >
+                    <source src={src} />
+                  </video>
+                ) : (
+                  <img
+                    src={src}
+                    alt={m.fileName || ""}
+                    className="emw-mediaFill"
+                    loading="lazy"
+                  />
+                )}
+              </button>
+
+              <button
+                onClick={() => onDelete(m.mediaId)}
+                disabled={deleting === m.mediaId}
+                className="emw-btn emw-btn-ghost emw-btn-block"
+                data-disabled={deleting === m.mediaId ? "true" : "false"}
+              >
+                {deleting === m.mediaId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Lightbox */}
@@ -322,37 +305,33 @@ export default function MediaGallery({
             </button>
 
             <div className="emw-lightboxStage">
-              {activeItem.type === "IMAGE" ? (
-                <img
-                  src={activeItem.displayUrl}
-                  alt={activeItem.fileName || ""}
-                  className="emw-lightboxMedia"
-                />
-              ) : (
-                <video
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="emw-lightboxMedia"
-                >
-                  <source
-                    src={withInlineAndType(
-                      activeItem.displayUrl,
-                      guessMimeFromName(activeItem.fileName)
-                    )}
-                    type={guessMimeFromName(activeItem.fileName) || "video/mp4"}
-                  />
-                  {/* Fallback for unsupported codecs (common with .mov HEVC on Windows browsers) */}
-                  Your browser can’t play this video.{" "}
-                  <a
-                    href={withInlineAndType(activeItem.displayUrl)}
-                    target="_blank"
-                    rel="noreferrer"
+              {(() => {
+                const treatAsVideo =
+                  activeItem.type === "VIDEO" ||
+                  isVideoFile(activeItem.fileName);
+                const src = withInline(activeItem.displayUrl);
+
+                return treatAsVideo ? (
+                  <video
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="emw-lightboxMedia"
                   >
-                    Open video
-                  </a>
-                </video>
-              )}
+                    <source src={src} />
+                    Your browser can’t play this video.{" "}
+                    <a href={src} target="_blank" rel="noreferrer">
+                      Open video
+                    </a>
+                  </video>
+                ) : (
+                  <img
+                    src={src}
+                    alt={activeItem.fileName || ""}
+                    className="emw-lightboxMedia"
+                  />
+                );
+              })()}
             </div>
 
             <button
