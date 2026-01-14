@@ -89,7 +89,6 @@ export default function MediaGallery({
 
     try {
       await apiDeleteRaw(`/events/${eventId}/media/${mediaId}`);
-      // keep your existing refresh contract
       onDeleted?.();
     } catch (e: any) {
       setError(e?.message ?? "Delete failed.");
