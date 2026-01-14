@@ -1,9 +1,5 @@
-import { app, InvocationContext } from "@azure/functions";
+import type { InvocationContext } from "@azure/functions";
 
-/**
- * Event Grid event payload shape (lightweight).
- * Storage BlobCreated data includes url, api, contentType, etc.
- */
 type EventGridEvent<T = any> = {
   id: string;
   eventType: string;
@@ -20,24 +16,16 @@ type BlobCreatedData = {
   api?: string;
   contentType?: string;
   contentLength?: number;
-  blobType?: string;
 };
 
-export async function blobCreatedProcessing(
+export default async function (
   event: EventGridEvent<BlobCreatedData>,
   context: InvocationContext
-): Promise<void> {
-  context.log("EventGrid eventType:", event.eventType);
-  context.log("Subject:", event.subject);
-  context.log("Blob URL:", event.data?.url);
+) {
+  context.log("BlobCreatedProcessing triggered");
+  context.log("eventType:", event?.eventType);
+  context.log("subject:", event?.subject);
+  context.log("url:", event?.data?.url);
 
-  // TODO: Implement your processing:
-  // - generate thumbnail
-  // - extract metadata
-  // - update Cosmos doc
-  // - enqueue a message, etc.
+  // TODO: do your processing here
 }
-
-app.eventGrid("blob-created-processing", {
-  handler: blobCreatedProcessing,
-});
