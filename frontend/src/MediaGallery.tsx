@@ -241,8 +241,19 @@ export default function MediaGallery({
               type="button"
               className="emw-lightboxClose"
               aria-label="Close"
-              onMouseDown={(e) => {
-                e.stopPropagation(); // critical
+              onPointerDownCapture={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                closeLightbox();
+              }}
+              onClick={(e) => {
+                // fallback for environments where pointer events behave oddly
+                e.preventDefault();
+                e.stopPropagation();
                 closeLightbox();
               }}
             >
