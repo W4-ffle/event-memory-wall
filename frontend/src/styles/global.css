@@ -820,3 +820,13 @@ html.emw-dark {
     font-size: 30px;
   }
 }
+
+.emw-lightboxStage {
+  z-index: 0; /* behind controls */
+}
+
+.emw-lightboxClose,
+.emw-lightboxNav,
+.emw-lightboxCaption {
+  z-index: 2; /* clickable above stage/media */
+}
