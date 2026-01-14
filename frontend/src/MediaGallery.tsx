@@ -26,6 +26,37 @@ function pickDisplayUrl(sas: any): string | null {
   );
 }
 
+function guessMimeFromName(fileName: string): string | undefined {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "mp4":
+      return "video/mp4";
+    case "mov":
+      return "video/quicktime";
+    case "webm":
+      return "video/webm";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Azure Blob supports response header overrides:
+ *  - rscd: Content-Disposition
+ *  - rsct: Content-Type
+ */
+function withInlineAndType(url: string, mime?: string) {
+  const sep = url.includes("?") ? "&" : "?";
+  let out = `${url}${sep}rscd=inline`;
+  if (mime) out += `&rsct=${encodeURIComponent(mime)}`;
+  return out;
+}
+
 export default function MediaGallery({
   eventId,
   refreshKey,
@@ -213,7 +244,20 @@ export default function MediaGallery({
                   loading="lazy"
                 />
               ) : (
-                <video src={m.displayUrl} className="emw-mediaFill" />
+                <video
+                  className="emw-mediaFill"
+                  muted
+                  playsInline
+                  preload="metadata"
+                >
+                  <source
+                    src={withInlineAndType(
+                      m.displayUrl,
+                      guessMimeFromName(m.fileName)
+                    )}
+                    type={guessMimeFromName(m.fileName) || "video/mp4"}
+                  />
+                </video>
               )}
             </button>
 
@@ -286,10 +330,28 @@ export default function MediaGallery({
                 />
               ) : (
                 <video
-                  src={activeItem.displayUrl}
                   controls
+                  playsInline
+                  preload="metadata"
                   className="emw-lightboxMedia"
-                />
+                >
+                  <source
+                    src={withInlineAndType(
+                      activeItem.displayUrl,
+                      guessMimeFromName(activeItem.fileName)
+                    )}
+                    type={guessMimeFromName(activeItem.fileName) || "video/mp4"}
+                  />
+                  {/* Fallback for unsupported codecs (common with .mov HEVC on Windows browsers) */}
+                  Your browser can’t play this video.{" "}
+                  <a
+                    href={withInlineAndType(activeItem.displayUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open video
+                  </a>
+                </video>
               )}
             </div>
 
