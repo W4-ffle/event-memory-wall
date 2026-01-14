@@ -830,3 +830,102 @@ html.emw-dark {
 .emw-lightboxCaption {
   z-index: 2; /* clickable above stage/media */
 }
+
+/* ==============================
+   Mobile & accessibility improvements (added)
+   - Reduces accidental zoom
+   - Improves tap targets
+   - Improves layout on small screens
+   - Adds safe-area padding
+============================== */
+
+html {
+  -webkit-text-size-adjust: 100%; /* prevents iOS from auto-scaling text */
+  text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior: none; /* reduces rubber-band + weird scroll behaviors */
+}
+
+/* Prevent double-tap zoom on interactive elements */
+a,
+button,
+input,
+textarea,
+select,
+.emw-card,
+.emw-mediaThumbBtn {
+  touch-action: manipulation;
+}
+
+/* Prevent iOS zooming when focusing inputs (iOS zoom triggers < 16px) */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+/* Visible focus ring (good for accessibility + marking) */
+.emw-btn:focus-visible,
+.emw-card:focus-visible,
+.emw-mediaThumbBtn:focus-visible,
+.emw-input:focus-visible {
+  outline: 2px solid var(--primary-bg);
+  outline-offset: 2px;
+}
+
+/* Safe-area padding (notch/home indicator) */
+.emw-page {
+  padding-top: calc(24px + env(safe-area-inset-top));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+/* Make common interactive targets easier to tap on mobile */
+.emw-btn,
+.emw-lightboxClose,
+.emw-lightboxNav {
+  min-height: 44px;
+}
+
+/* Mobile navbar/page spacing + hide session text to avoid overflow */
+@media (max-width: 640px) {
+  .emw-navbar-inner {
+    padding: 0 14px;
+    gap: 10px;
+  }
+
+  .emw-navbar-actions {
+    gap: 8px;
+  }
+
+  .emw-session {
+    display: none; /* hides “Signed in as…” on small screens */
+  }
+
+  .emw-page {
+    padding: 14px;
+    padding-top: calc(14px + env(safe-area-inset-top));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .emw-btn {
+    padding: 10px 12px; /* slightly larger tap padding */
+  }
+}
+
+/* Very small phones: force 1-column cards and reduce image height a bit */
+@media (max-width: 420px) {
+  .emw-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .emw-card-media {
+    height: 170px;
+  }
+
+  .emw-card-meta {
+    font-size: 14px; /* improve readability */
+  }
+}
