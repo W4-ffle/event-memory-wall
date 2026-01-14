@@ -706,6 +706,7 @@ html.emw-dark {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
   overflow: hidden;
+  pointer-events: auto;
 }
 
 .emw-lightboxStage {
@@ -737,6 +738,7 @@ html.emw-dark {
   color: #fff;
   cursor: pointer;
   font-weight: 800;
+  pointer-events: auto;
 }
 
 .emw-lightboxNav {
