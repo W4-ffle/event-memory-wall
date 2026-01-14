@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiDeleteRaw, apiPatch, apiGetBlob } from "./api";
 import UploadMedia from "./UploadMedia";
 import MediaGallery from "./MediaGallery";
 import MembersPanel from "./MembersPanel";
+import { toggleTheme, getTheme } from "./theme";
 
 type EventDoc = {
   id: string;
@@ -23,6 +24,8 @@ type MediaDoc = {
   createdAt: string;
   fileName: string;
 };
+
+const [theme, setTheme] = useState(getTheme());
 
 function getSession(): { userId?: string; isAdmin?: boolean } | null {
   try {
@@ -400,6 +403,13 @@ export default function EventsPage() {
             >
               <span className="emw-btn-plus">+</span>
               Create Event
+            </button>
+            <button
+              onClick={() => setTheme(toggleTheme())}
+              className="emw-btn"
+              title="Toggle dark mode"
+            >
+              {theme === "dark" ? "Light mode" : "Dark mode"}
             </button>
           </div>
         </div>
