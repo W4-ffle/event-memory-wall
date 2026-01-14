@@ -4,7 +4,7 @@ import { apiGet, apiDeleteRaw } from "./api";
 type MediaDoc = {
   mediaId: string;
   blobUrl: string;
-  type: "IMAGE" | "VIDEO"; // backend may be wrong; UI will also infer from extension
+  type: "IMAGE" | "VIDEO"; // backend may be wrong; UI also infers from extension
   fileName: string;
   createdAt: string;
 };
@@ -27,21 +27,12 @@ function pickDisplayUrl(sas: any): string | null {
 }
 
 /**
- * Your backend is currently returning VIDEO files as type=IMAGE (seen in DevTools).
- * So we infer from filename extension as a robust fallback.
+ * Backend is currently mislabelling some videos as IMAGE.
+ * Infer from file extension as a robust fallback.
  */
 function isVideoFile(fileName?: string) {
   const ext = (fileName || "").split(".").pop()?.toLowerCase();
   return ext === "mp4" || ext === "mov" || ext === "webm" || ext === "ogv";
-}
-
-/**
- * Optional: force inline (prevents "download" behaviour in some cases)
- * Azure Blob supports rscd=inline for Content-Disposition override.
- */
-function withInline(url: string) {
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}rscd=inline`;
 }
 
 export default function MediaGallery({
@@ -149,7 +140,6 @@ export default function MediaGallery({
 
     window.addEventListener("keydown", onKeyDown);
 
-    // Prevent page scroll while open
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -214,7 +204,6 @@ export default function MediaGallery({
       <div className="emw-mediaGrid">
         {media.map((m, idx) => {
           const treatAsVideo = m.type === "VIDEO" || isVideoFile(m.fileName);
-          const src = withInline(m.displayUrl);
 
           return (
             <div key={m.mediaId} className="emw-mediaCard">
@@ -231,11 +220,11 @@ export default function MediaGallery({
                     playsInline
                     preload="metadata"
                   >
-                    <source src={src} />
+                    <source src={m.displayUrl} />
                   </video>
                 ) : (
                   <img
-                    src={src}
+                    src={m.displayUrl}
                     alt={m.fileName || ""}
                     className="emw-mediaFill"
                     loading="lazy"
@@ -305,33 +294,31 @@ export default function MediaGallery({
             </button>
 
             <div className="emw-lightboxStage">
-              {(() => {
-                const treatAsVideo =
-                  activeItem.type === "VIDEO" ||
-                  isVideoFile(activeItem.fileName);
-                const src = withInline(activeItem.displayUrl);
-
-                return treatAsVideo ? (
-                  <video
-                    controls
-                    playsInline
-                    preload="metadata"
-                    className="emw-lightboxMedia"
+              {activeItem.type === "VIDEO" ||
+              isVideoFile(activeItem.fileName) ? (
+                <video
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="emw-lightboxMedia"
+                >
+                  <source src={activeItem.displayUrl} />
+                  Your browser can’t play this video.{" "}
+                  <a
+                    href={activeItem.displayUrl}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    <source src={src} />
-                    Your browser can’t play this video.{" "}
-                    <a href={src} target="_blank" rel="noreferrer">
-                      Open video
-                    </a>
-                  </video>
-                ) : (
-                  <img
-                    src={src}
-                    alt={activeItem.fileName || ""}
-                    className="emw-lightboxMedia"
-                  />
-                );
-              })()}
+                    Open video
+                  </a>
+                </video>
+              ) : (
+                <img
+                  src={activeItem.displayUrl}
+                  alt={activeItem.fileName || ""}
+                  className="emw-lightboxMedia"
+                />
+              )}
             </div>
 
             <button
