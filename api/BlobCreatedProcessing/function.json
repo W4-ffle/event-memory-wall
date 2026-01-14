@@ -2,8 +2,8 @@
   "bindings": [
     {
       "type": "eventGridTrigger",
-      "name": "event",
-      "direction": "in"
+      "direction": "in",
+      "name": "event"
     }
   ],
   "scriptFile": "../dist/BlobCreatedProcessing/index.js"

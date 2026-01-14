@@ -1,4 +1,4 @@
-import type { InvocationContext } from "@azure/functions";
+import { InvocationContext } from "@azure/functions";
 
 type EventGridEvent<T = any> = {
   id: string;
@@ -19,13 +19,15 @@ type BlobCreatedData = {
 };
 
 export default async function (
-  event: EventGridEvent<BlobCreatedData>,
-  context: InvocationContext
-) {
+  context: InvocationContext,
+  event: EventGridEvent<BlobCreatedData>
+): Promise<void> {
   context.log("BlobCreatedProcessing triggered");
+
   context.log("eventType:", event?.eventType);
   context.log("subject:", event?.subject);
-  context.log("url:", event?.data?.url);
+  context.log("eventTime:", event?.eventTime);
+  context.log("blob url:", event?.data?.url);
 
-  // TODO: do your processing here
+  // TODO: Add processing logic here (e.g., write metadata to Cosmos, generate thumbnail, etc.)
 }
