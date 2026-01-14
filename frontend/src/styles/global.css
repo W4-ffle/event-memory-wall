@@ -18,19 +18,158 @@ body,
   color: #111827;
 }
 
-button {
-  font-family: inherit;
-}
-
+button,
 input {
   font-family: inherit;
 }
 
 /* ==============================
-   Layout
+   Shared buttons & inputs (emw-*)
 ============================== */
 
-.app-shell {
+.emw-btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.emw-btn-primary {
+  border: 1px solid #111;
+  background: #0b0b1a;
+  color: #fff;
+}
+
+.emw-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.emw-input {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  color: #111827;
+}
+
+.emw-input:focus {
+  border-color: #111;
+}
+
+.emw-input-lg {
+  padding: 12px;
+}
+
+/* ==============================
+   Login page
+============================== */
+
+.emw-loginShell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #fff;
+  overflow: auto;
+}
+
+.emw-loginTopbar {
+  width: 100%;
+  padding: 18px 24px;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+
+.emw-loginTopbarInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.emw-brand {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.emw-loginHint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.emw-loginCenter {
+  min-height: calc(100vh - 61px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.emw-loginCard {
+  width: min(560px, 100%);
+  border: 1px solid #eee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  padding: 22px;
+}
+
+.emw-loginTitle {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.emw-loginSubtitle {
+  font-size: 13px;
+  opacity: 0.75;
+  margin-top: 6px;
+}
+
+.emw-loginForm {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.emw-loginActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+/* ==============================
+   Generic form helpers
+============================== */
+
+.emw-field {
+  display: grid;
+  gap: 6px;
+}
+
+.emw-label {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.emw-labelHint {
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+/* ==============================
+   App shell / navbar (Events page)
+============================== */
+
+.emw-appShell {
   position: fixed;
   inset: 0;
   width: 100vw;
@@ -39,7 +178,7 @@ input {
   background: #f7f7f8;
 }
 
-.navbar {
+.emw-navbar {
   position: fixed;
   top: 0;
   left: 0;
@@ -50,7 +189,7 @@ input {
   z-index: 50;
 }
 
-.navbar-inner {
+.emw-navbarInner {
   height: 100%;
   padding: 0 24px;
   display: flex;
@@ -59,30 +198,30 @@ input {
   gap: 16px;
 }
 
-.main-content {
+.emw-main {
   padding-top: 64px;
 }
 
-.page-container {
+.emw-page {
   padding: 24px;
 }
 
 /* ==============================
-   Typography
+   Page titles & errors
 ============================== */
 
-.page-title {
+.emw-pageTitle {
   font-size: 18px;
   font-weight: 800;
 }
 
-.page-subtitle {
+.emw-pageSubtitle {
   font-size: 13px;
   opacity: 0.75;
   margin-top: 6px;
 }
 
-.error-box {
+.emw-error {
   padding: 12px;
   background: #fee;
   border: 1px solid #f5caca;
@@ -92,46 +231,16 @@ input {
 }
 
 /* ==============================
-   Buttons
-============================== */
-
-.btn {
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.btn-primary {
-  border-color: #111;
-  background: #0b0b1a;
-  color: #fff;
-  font-weight: 700;
-}
-
-.btn-danger {
-  background: #fff;
-  border-color: #f2c2c2;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* ==============================
    Event cards grid
 ============================== */
 
-.event-grid {
+.emw-eventGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 18px;
 }
 
-.event-card {
+.emw-eventCard {
   border-radius: 14px;
   overflow: hidden;
   background: #fff;
@@ -141,38 +250,36 @@ input {
   text-align: left;
 }
 
-.event-card.selected {
+.emw-eventCard.selected {
   border: 2px solid #111;
 }
 
-.event-card-cover {
+.emw-eventCover {
   position: relative;
   height: 190px;
   background: #f3f3f3;
 }
 
-.event-card-cover img {
+.emw-eventCover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.event-card-overlay {
+.emw-eventOverlay {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: auto 0 0 0;
   padding: 12px;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
   color: #fff;
 }
 
-.event-card-title {
+.emw-eventTitle {
   font-weight: 800;
   font-size: 15px;
 }
 
-.event-card-meta {
+.emw-eventMeta {
   display: flex;
   justify-content: space-between;
   padding: 12px;
@@ -184,19 +291,19 @@ input {
    Selected event panel
 ============================== */
 
-.event-panel {
+.emw-eventPanel {
   margin-top: 26px;
   max-width: 1100px;
 }
 
-.event-panel-inner {
+.emw-eventPanelInner {
   padding: 16px;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   background: #fff;
 }
 
-.event-panel-header {
+.emw-eventHeader {
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -207,11 +314,11 @@ input {
    Members panel
 ============================== */
 
-.members-panel {
+.emw-membersPanel {
   margin-top: 10px;
 }
 
-.members-box {
+.emw-membersBox {
   margin-top: 10px;
   padding: 12px;
   border: 1px solid #eee;
@@ -221,7 +328,7 @@ input {
   gap: 10px;
 }
 
-.member-row {
+.emw-memberRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -236,26 +343,43 @@ input {
    Media gallery
 ============================== */
 
-.media-grid {
+.emw-mediaGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
+  margin-top: 12px;
 }
 
-.media-item {
+.emw-mediaItem {
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 10px;
+  background: #fff;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
-.media-item img,
-.media-item video {
-  max-width: 100%;
-  border-radius: 8px;
+.emw-mediaPreview {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f6f6f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emw-mediaPreview img,
+.emw-mediaPreview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ==============================
-   UploadMedia (emw-* classes)
+   Upload media
 ============================== */
 
 .emw-upload {
@@ -270,33 +394,10 @@ input {
 
 .emw-file {
   width: 100%;
-  box-sizing: border-box;
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid #d1d5db;
   background: #fff;
-  cursor: pointer;
-}
-
-.emw-file:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-/* Helpful for consistent look on some browsers */
-.emw-file::file-selector-button {
-  margin-right: 10px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.emw-file:disabled::file-selector-button {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 .emw-helpText {
@@ -313,7 +414,7 @@ input {
    Modals
 ============================== */
 
-.modal-backdrop {
+.emw-modalBackdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
@@ -324,7 +425,7 @@ input {
   padding: 16px;
 }
 
-.modal {
+.emw-modal {
   width: min(560px, 100%);
   background: #fff;
   border-radius: 14px;
