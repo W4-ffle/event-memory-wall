@@ -25,8 +25,6 @@ type MediaDoc = {
   fileName: string;
 };
 
-const [theme, setTheme] = useState(getTheme());
-
 function getSession(): { userId?: string; isAdmin?: boolean } | null {
   try {
     return JSON.parse(localStorage.getItem("emw_session") || "null");
@@ -89,6 +87,8 @@ export default function EventsPage() {
 
   const admin = isAdmin();
   const session = getSession();
+
+  const [theme, setTheme] = useState(getTheme());
 
   const myUserId = useMemo(
     () => String(session?.userId || "").trim(),

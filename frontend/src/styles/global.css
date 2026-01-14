@@ -23,7 +23,8 @@ input {
   font-family: inherit;
 }
 
-button {
+/* Only remove default styling for buttons that are NOT your component buttons */
+button:not(.emw-btn) {
   border: none;
   background: none;
 }
@@ -265,8 +266,8 @@ html.emw-dark {
   width: 100vw;
   height: 100vh;
   overflow: auto;
-  background: #f7f7f8;
-  color: #111827;
+  background: var(--bg);
+  color: var(--text);
 }
 
 /* Fixed full-width navbar */
@@ -276,8 +277,8 @@ html.emw-dark {
   left: 0;
   right: 0;
   width: 100%;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f7f7f8;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
   z-index: 50;
 }
 
@@ -352,8 +353,8 @@ html.emw-dark {
 
 .emw-card {
   text-align: left;
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 14px;
   overflow: hidden;
   padding: 0;
@@ -369,7 +370,7 @@ html.emw-dark {
 .emw-card-media {
   position: relative;
   height: 190px;
-  background: #f3f3f3;
+  background: var(--surface-2);
 }
 
 .emw-card-img {
@@ -385,7 +386,7 @@ html.emw-dark {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -416,7 +417,7 @@ html.emw-dark {
   gap: 10px;
   padding: 12px;
   font-size: 13px;
-  color: #333;
+  color: var(--text);
 }
 
 .emw-card-stat {
@@ -434,9 +435,9 @@ html.emw-dark {
 
 .emw-detail {
   padding: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 14px;
-  background: #fff;
 }
 
 .emw-detail-head {
@@ -472,8 +473,8 @@ html.emw-dark {
 .emw-confirm {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #f2c2c2;
-  background: #fff7f7;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
   border-radius: 12px;
   display: flex;
   justify-content: space-between;
@@ -636,9 +637,9 @@ html.emw-dark {
 
 .emw-modal {
   width: min(560px, 100%);
-  background: #fff;
+  background: var(--surface);
   border-radius: 14px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
   padding: 16px;
 }
